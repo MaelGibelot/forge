@@ -890,6 +890,19 @@ hr {
   border-radius: 2px;
   margin-right: 6px;
 }
+.muscle-activity .card-header {
+  flex-wrap: wrap;
+  gap: 14px;
+}
+.muscle-activity .anatomy-wrap svg {
+  height: clamp(220px, 38vw, 340px);
+}
+.muscle-activity .legend {
+  justify-content: center;
+}
+.muscle-activity .notes-details li {
+  margin-top: 6px;
+}
 .exercise-details {
   display: grid;
   grid-template-columns: 1fr 1.5fr;

@@ -36,3 +36,11 @@ La stack Supabase complète n’a pas été lancée localement : Docker n’éta
 6. Réalisé pour HTTPS, l’origine exacte, le déploiement et le rejet d’identifiants inconnus ; les cookies d’une vraie session et la limitation après tentatives répétées restent à vérifier avec les comptes de test.
 
 Les tests ignorés ne sont pas comptés comme réussis. Aucune connexion, donnée distante ou publication n’est présentée comme validée sans preuve.
+
+## Évolution : 7 jours, carte musculaire et suppression depuis la séance
+
+- 59 tests Vitest réussis : ajout de la période de 7 jours avec contrôle de la borne temporelle, exclusion des brouillons et séries non validées, filtre d’échauffement, couleurs des zones et bascule principales/secondaires.
+- Suppression depuis une séance libre active, en brouillon ou terminée : confirmation annulable, requête avec sa révision et retour vers l’historique. Tests de suppression pendant une sauvegarde, abandon des modifications en attente, absence de recréation après reconnexion, conservation de la récupération sur erreur réseau et protection des conflits.
+- Contrôle navigateur local sur ordinateur et iPhone simulé : filtres, carte, absence de débordement, thèmes sombre/clair, annulation puis confirmation d’une suppression. Ces parcours utilisent une API de test interceptée ; ils ne valident pas une session Supabase réelle. L’aperçu temporaire a été retiré du code de l’application avant publication.
+- Captures de la carte avec données de test dans `docs/previews/statistiques-muscles-test.png` et `docs/previews/statistiques-muscles-clair-test.png`.
+- Aucune migration, modification des comptes ou suppression de séance réelle n’est nécessaire pour cette évolution. L’API existante conserve le contrôle du propriétaire et de la révision ; les statistiques et records excluent les séances supprimées lors du rechargement des données.

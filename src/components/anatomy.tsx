@@ -1,4 +1,6 @@
-import type { Muscle } from '@/lib/domain';
+'use client';
+import { useState } from 'react';
+import { muscles, type Muscle } from '@/lib/domain';
 const shapes: { muscle: Muscle; front?: string; back?: string }[] = [
   {
     muscle: 'Pectoraux',
@@ -38,6 +40,42 @@ const shapes: { muscle: Muscle; front?: string; back?: string }[] = [
     back: 'M34 182 Q44 177 54 183 L49 217 43 230 35 215Z M70 183 Q80 177 90 182 L89 215 81 230 75 217Z',
   },
 ];
+function BodyDiagram({
+  back,
+  label,
+  color,
+  description,
+}: {
+  back: boolean;
+  label: string;
+  color: (muscle: Muscle) => string;
+  description?: (muscle: Muscle) => string;
+}) {
+  return (
+    <svg
+      viewBox="0 0 124 255"
+      role="img"
+      aria-label={`${back ? 'Vue arrière' : 'Vue avant'}, ${label}`}
+    >
+      <g fill="var(--border)">
+        <ellipse cx="62" cy="19" rx="12" ry="15" />
+        <path d="M54 31 L54 38 37 40 Q25 40 22 53 L14 88 8 116 14 120 23 93 31 72 34 104 29 135 31 176 31 211 32 238 29 248 46 248 48 238 50 210 55 175 62 144 69 175 74 210 76 238 78 248 95 248 92 238 93 211 93 176 95 135 90 104 93 72 101 93 110 120 116 116 110 88 102 53 Q99 40 87 40 L70 38 70 31Z" />
+      </g>
+      {shapes.map(({ muscle, front, back: rear }) => (
+        <path
+          key={muscle}
+          d={(back ? rear : front) ?? ''}
+          fill={color(muscle)}
+          stroke="var(--bg)"
+          strokeWidth="1.2"
+        >
+          <title>{description?.(muscle) ?? muscle}</title>
+        </path>
+      ))}
+      <path d="M62 45V109" stroke="var(--bg)" strokeWidth="1.3" />
+    </svg>
+  );
+}
 export function Anatomy({
   primary,
   secondary = [],
@@ -48,32 +86,17 @@ export function Anatomy({
   compact?: boolean;
 }) {
   const draw = (back: boolean) => (
-    <svg
-      viewBox="0 0 124 255"
-      role="img"
-      aria-label={`${back ? 'Vue arrière' : 'Vue avant'}, muscle principal : ${primary}`}
-    >
-      <g fill="var(--border)">
-        <ellipse cx="62" cy="19" rx="12" ry="15" />
-        <path d="M54 31 L54 38 37 40 Q25 40 22 53 L14 88 8 116 14 120 23 93 31 72 34 104 29 135 31 176 31 211 32 238 29 248 46 248 48 238 50 210 55 175 62 144 69 175 74 210 76 238 78 248 95 248 92 238 93 211 93 176 95 135 90 104 93 72 101 93 110 120 116 116 110 88 102 53 Q99 40 87 40 L70 38 70 31Z" />
-      </g>
-      {shapes.map(({ muscle, front, back: rear }) => (
-        <path
-          key={muscle}
-          d={(back ? rear : front) ?? ''}
-          fill={
-            muscle === primary
-              ? 'var(--accent)'
-              : secondary.includes(muscle)
-                ? '#a3b992'
-                : 'var(--panel2)'
-          }
-          stroke="var(--bg)"
-          strokeWidth="1.2"
-        />
-      ))}
-      <path d="M62 45V109" stroke="var(--bg)" strokeWidth="1.3" />
-    </svg>
+    <BodyDiagram
+      back={back}
+      label={`muscle principal : ${primary}`}
+      color={(muscle) =>
+        muscle === primary
+          ? 'var(--accent)'
+          : secondary.includes(muscle)
+            ? '#a3b992'
+            : 'var(--panel2)'
+      }
+    />
   );
   if (compact)
     return draw(
@@ -110,5 +133,95 @@ export function Anatomy({
         Schéma indicatif par groupe musculaire. Il ne mesure pas l’activation.
       </p>
     </>
+  );
+}
+
+const activityLevels = [
+  { label: '0 série', color: 'var(--panel2)' },
+  { label: '1 à 5 séries', color: '#94bca4' },
+  { label: '6 à 10 séries', color: '#e5b65c' },
+  { label: '11 séries et plus', color: '#f18b54' },
+];
+export function MuscleActivity({
+  direct,
+  secondary,
+}: {
+  direct: { name: Muscle; count: number }[];
+  secondary: { name: Muscle; count: number }[];
+}) {
+  const [mode, setMode] = useState<'direct' | 'secondary'>('direct');
+  const counts = new Map((mode === 'direct' ? direct : secondary).map((m) => [m.name, m.count]));
+  const label = mode === 'direct' ? 'séries directes' : 'sollicitations secondaires';
+  const color = (muscle: Muscle) => {
+    const count = counts.get(muscle) ?? 0;
+    return activityLevels[count === 0 ? 0 : count <= 5 ? 1 : count <= 10 ? 2 : 3].color;
+  };
+  const description = (muscle: Muscle) => `${muscle} : ${counts.get(muscle) ?? 0} ${label}`;
+  return (
+    <section
+      className="card muscle-activity"
+      aria-label="Zones musculaires travaillées"
+      style={{ marginBottom: 22 }}
+    >
+      <div className="card-header">
+        <h2>Vos zones travaillées</h2>
+        <div className="period-tabs" role="group" aria-label="Type de sollicitation">
+          <button
+            type="button"
+            aria-pressed={mode === 'direct'}
+            className={mode === 'direct' ? 'active' : ''}
+            onClick={() => setMode('direct')}
+          >
+            Séries directes
+          </button>
+          <button
+            type="button"
+            aria-pressed={mode === 'secondary'}
+            className={mode === 'secondary' ? 'active' : ''}
+            onClick={() => setMode('secondary')}
+          >
+            Secondaires
+          </button>
+        </div>
+      </div>
+      <p className="muted" style={{ fontSize: 12, marginBottom: 22 }}>
+        {mode === 'direct'
+          ? 'Séries validées pour le muscle principal de chaque exercice.'
+          : 'Séries sollicitant ces muscles en complément, comptées séparément des séries directes.'}{' '}
+        Les couleurs suivent la période et le filtre d’échauffement choisis.
+      </p>
+      <div className="anatomy-wrap">
+        {[false, true].map((back) => (
+          <figure key={String(back)}>
+            <BodyDiagram back={back} label={label} color={color} description={description} />
+            <figcaption>{back ? 'ARRIÈRE' : 'AVANT'}</figcaption>
+          </figure>
+        ))}
+      </div>
+      <div className="legend" aria-label="Code couleur du nombre de séries">
+        {activityLevels.map((level) => (
+          <span key={level.label}>
+            <i style={{ background: level.color, border: '1px solid var(--border)' }} />
+            {level.label}
+          </span>
+        ))}
+      </div>
+      {!Array.from(counts.values()).some((n) => n > 0) && (
+        <p className="muted" style={{ marginTop: 16 }}>
+          Aucune série validée de ce type sur la période.
+        </p>
+      )}
+      <details className="notes-details">
+        <summary>Voir les séries par zone</summary>
+        <ul>
+          {muscles.map((muscle) => (
+            <li key={muscle}>{description(muscle)}</li>
+          ))}
+        </ul>
+      </details>
+      <p className="muted" style={{ fontSize: 10, marginTop: 14 }}>
+        Schéma indicatif des séries enregistrées par groupe musculaire.
+      </p>
+    </section>
   );
 }

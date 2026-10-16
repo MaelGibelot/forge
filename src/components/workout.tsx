@@ -127,37 +127,69 @@ function WorkoutEditor({ initial }: { initial: Workout }) {
         title={w.name}
         description={`${w.exercises.length} exercices · ${done}/${total} séries effectuées · ${number(workoutVolume(w))} kg de volume externe`}
         actions={
-          !edit ? (
-            <>
-              <Button variant="secondary" onClick={() => setEdit(true)}>
-                <Pencil size={15} />
-                Modifier
-              </Button>
-              <Button
-                variant="secondary"
-                busy={busy}
-                onClick={async () => {
-                  setBusy(true);
-                  try {
-                    const next = duplicateWorkout(w);
-                    const r = await api<{ revision: number }>('/api/workouts', {
-                      method: 'POST',
-                      body: JSON.stringify(next),
-                    });
-                    remember({ ...next, revision: r.revision });
-                    router.push(`/seances/${next.id}`);
-                  } catch (e) {
-                    setError((e as Error).message);
-                  } finally {
-                    setBusy(false);
-                  }
-                }}
-              >
-                <Copy size={15} />
-                Dupliquer
-              </Button>
-            </>
-          ) : undefined
+          <>
+            {!edit && (
+              <>
+                <Button variant="secondary" disabled={busy} onClick={() => setEdit(true)}>
+                  <Pencil size={15} />
+                  Modifier
+                </Button>
+                <Button
+                  variant="secondary"
+                  busy={busy}
+                  onClick={async () => {
+                    setBusy(true);
+                    try {
+                      const next = duplicateWorkout(w);
+                      const r = await api<{ revision: number }>('/api/workouts', {
+                        method: 'POST',
+                        body: JSON.stringify(next),
+                      });
+                      remember({ ...next, revision: r.revision });
+                      router.push(`/seances/${next.id}`);
+                    } catch (e) {
+                      setError((e as Error).message);
+                    } finally {
+                      setBusy(false);
+                    }
+                  }}
+                >
+                  <Copy size={15} />
+                  Dupliquer
+                </Button>
+              </>
+            )}
+            <Button
+              variant="danger"
+              busy={busy}
+              onClick={async () => {
+                if (
+                  !confirm(
+                    `Supprimer définitivement « ${w.name} » et ses séries ? Les records seront recalculés.`,
+                  )
+                )
+                  return;
+                setBusy(true);
+                setError(null);
+                try {
+                  await editor.remove();
+                } catch (e) {
+                  setError((e as Error).message);
+                  setBusy(false);
+                  return;
+                }
+                try {
+                  await reload();
+                  router.replace('/historique');
+                } catch {
+                  // Force a fresh provider if refreshing the shared data failed.
+                  window.location.assign('/historique');
+                }
+              }}
+            >
+              <Trash2 size={15} /> Supprimer la séance
+            </Button>
+          </>
         }
       />
       {edit && (
@@ -176,6 +208,9 @@ function WorkoutEditor({ initial }: { initial: Workout }) {
                   saving: 'Enregistrement…',
                   error: 'Sauvegarde échouée',
                   conflict: 'Conflit de versions',
+                  deleting: 'Suppression en cours…',
+                  deleted: 'Séance supprimée',
+                  'delete-error': 'Suppression échouée',
                 }[editor.status]
               }
             </span>

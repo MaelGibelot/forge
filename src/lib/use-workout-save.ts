@@ -21,9 +21,9 @@ export function useWorkoutSave(initial: Workout, userId: string, onSaved: (w: Wo
     }
   });
   const [workout, setWorkout] = useState(recovery?.workout ?? initial);
-  const [status, setStatus] = useState<'saved' | 'dirty' | 'saving' | 'error' | 'conflict'>(
-    recovery ? (recovery.workout.revision !== initial.revision ? 'conflict' : 'dirty') : 'saved',
-  );
+  const [status, setStatus] = useState<
+    'saved' | 'dirty' | 'saving' | 'error' | 'conflict' | 'deleting' | 'deleted' | 'delete-error'
+  >(recovery ? (recovery.workout.revision !== initial.revision ? 'conflict' : 'dirty') : 'saved');
   const [error, setError] = useState<string | null>(
     recovery && recovery.workout.revision !== initial.revision
       ? 'Une saisie locale a été retrouvée, mais la version du serveur a changé. Copiez vos notes si nécessaire puis rechargez la version du serveur.'
@@ -35,6 +35,7 @@ export function useWorkoutSave(initial: Workout, userId: string, onSaved: (w: Wo
     saved = useRef(content(initial)),
     running = useRef<Promise<void> | null>(null),
     blocked = useRef(status === 'conflict'),
+    stopped = useRef(false),
     onSavedRef = useRef(onSaved);
   useEffect(() => {
     onSavedRef.current = onSaved;
@@ -51,6 +52,7 @@ export function useWorkoutSave(initial: Workout, userId: string, onSaved: (w: Wo
   );
   const change = useCallback(
     (next: Workout) => {
+      if (stopped.current) return;
       const w = { ...next, revision: revision.current };
       latest.current = w;
       setWorkout(w);
@@ -61,6 +63,7 @@ export function useWorkoutSave(initial: Workout, userId: string, onSaved: (w: Wo
   );
   const save = useCallback(
     async function flush(): Promise<void> {
+      if (stopped.current) return;
       if (blocked.current)
         throw new Error('Conflit de versions : rechargez la version du serveur.');
       if (running.current) {
@@ -85,15 +88,15 @@ export function useWorkoutSave(initial: Workout, userId: string, onSaved: (w: Wo
           setWorkout(next);
           const dirty = content(next) !== saved.current;
           store(next, dirty);
-          setStatus(dirty ? 'dirty' : 'saved');
+          if (!stopped.current) setStatus(dirty ? 'dirty' : 'saved');
           onSavedRef.current({ ...snapshot, revision: response.revision });
         } catch (e) {
           const err = e as Error & { status?: number };
           if (err.status === 409) {
             blocked.current = true;
-            setStatus('conflict');
-          } else setStatus('error');
-          setError(err.message);
+            if (!stopped.current) setStatus('conflict');
+          } else if (!stopped.current) setStatus('error');
+          if (!stopped.current) setError(err.message);
           store(latest.current, true);
           throw e;
         }
@@ -108,6 +111,34 @@ export function useWorkoutSave(initial: Workout, userId: string, onSaved: (w: Wo
     },
     [store],
   );
+  const remove = useCallback(async () => {
+    if (stopped.current) return;
+    stopped.current = true;
+    setStatus('deleting');
+    setError(null);
+    try {
+      // Finish the request already in flight, then delete its confirmed revision.
+      // Unsaved edits need not be persisted to discard a session.
+      await running.current?.catch(() => {});
+      await api('/api/workouts', {
+        method: 'DELETE',
+        body: JSON.stringify({ id: initial.id, revision: revision.current }),
+      });
+    } catch (e) {
+      stopped.current = false;
+      const err = e as Error & { status?: number };
+      if (err.status === 409) blocked.current = true;
+      setStatus(blocked.current ? 'conflict' : 'delete-error');
+      setError(err.message);
+      throw e;
+    }
+    try {
+      localStorage.removeItem(key);
+    } catch {
+      // The server has deleted the session; a local cleanup failure cannot undo it.
+    }
+    setStatus('deleted');
+  }, [initial.id, key]);
   useEffect(() => {
     if (status !== 'dirty') return;
     const t = setTimeout(() => {
@@ -120,7 +151,7 @@ export function useWorkoutSave(initial: Workout, userId: string, onSaved: (w: Wo
       save().catch(() => {});
     };
     const leave = (e: BeforeUnloadEvent) => {
-      if (content(latest.current) !== saved.current) {
+      if (!stopped.current && content(latest.current) !== saved.current) {
         e.preventDefault();
         e.returnValue = '';
       }
@@ -140,5 +171,5 @@ export function useWorkoutSave(initial: Workout, userId: string, onSaved: (w: Wo
       window.location.reload();
     }
   };
-  return { workout, change, save, status, error, localWarning, reloadServer };
+  return { workout, change, save, remove, status, error, localWarning, reloadServer };
 }

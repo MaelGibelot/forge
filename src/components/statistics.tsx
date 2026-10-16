@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { ChartNoAxesCombined, Trophy } from 'lucide-react';
 import { useData, allWorkouts } from './store';
 import { PageTitle, Empty, ErrorBox, NumberField } from './ui';
+import { MuscleActivity } from './anatomy';
 import { type Workout, type WorkoutExercise, newEntry, muscles } from '@/lib/domain';
 import {
   eligible,
@@ -126,6 +127,7 @@ export function Statistics() {
       <div className="flex between" style={{ marginBottom: 22 }}>
         <div className="period-tabs">
           {[
+            [7, '7 jours'],
             [30, '30 jours'],
             [90, '90 jours'],
             [180, '6 mois'],
@@ -135,9 +137,12 @@ export function Statistics() {
             <button
               key={n}
               className={period === n ? 'active' : ''}
+              aria-pressed={period === n}
               onClick={() => {
+                if (period === Number(n)) return;
                 setPeriod(Number(n));
                 setWorkouts(null);
+                setError(null);
               }}
             >
               {label}
@@ -177,6 +182,13 @@ export function Statistics() {
           </div>
         ))}
       </div>
+      {workouts ? (
+        <MuscleActivity direct={direct} secondary={secondary} />
+      ) : (
+        <p role="status" className="muted" style={{ marginBottom: 22 }}>
+          Chargement des zones travaillées…
+        </p>
+      )}
       <section className="card">
         <div className="card-header">
           <h2>Progression par exercice</h2>

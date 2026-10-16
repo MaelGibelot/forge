@@ -116,4 +116,88 @@ describe('sauvegarde et reprise côté navigateur', () => {
     await waitFor(() => expect(result.current.status).toBe('saved'), { timeout: 2000 });
     expect(mock.api).toHaveBeenCalledTimes(1);
   });
+  it('attend la sauvegarde en cours puis supprime sa version sans relancer les saisies en attente', async () => {
+    vi.useFakeTimers();
+    let saved!: (v: { revision: number }) => void;
+    let deleted!: (v: { success: boolean }) => void;
+    mock.api
+      .mockReturnValueOnce(new Promise((r) => (saved = r)))
+      .mockReturnValueOnce(new Promise((r) => (deleted = r)));
+    const w = { ...startWorkout(), revision: 1 };
+    const { result } = renderHook(() => useWorkoutSave(w, user, () => {}));
+    act(() => result.current.change({ ...w, notes: 'A' }));
+    let saving!: Promise<void>, removing!: Promise<void>;
+    act(() => {
+      saving = result.current.save();
+    });
+    act(() => result.current.change({ ...result.current.workout, notes: 'B' }));
+    act(() => {
+      removing = result.current.remove();
+    });
+    expect(result.current.status).toBe('deleting');
+    expect(mock.api).toHaveBeenCalledTimes(1);
+    await act(async () => {
+      saved({ revision: 2 });
+      await saving;
+    });
+    expect(mock.api).toHaveBeenCalledTimes(2);
+    expect(mock.api.mock.calls[1][1]).toMatchObject({ method: 'DELETE' });
+    expect(JSON.parse(mock.api.mock.calls[1][1].body)).toEqual({ id: w.id, revision: 2 });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1000);
+    });
+    expect(mock.api).toHaveBeenCalledTimes(2);
+    await act(async () => {
+      deleted({ success: true });
+      await removing;
+    });
+    expect(result.current.status).toBe('deleted');
+    expect(localStorage.getItem(`forge:recovery:${user}:${w.id}`)).toBeNull();
+    act(() => {
+      window.dispatchEvent(new Event('online'));
+      result.current.change({ ...w, notes: 'Ne pas recréer' });
+    });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1000);
+      await result.current.save();
+    });
+    expect(mock.api).toHaveBeenCalledTimes(2);
+  });
+  it('garde la saisie et permet de sauvegarder ou supprimer à nouveau après un échec réseau', async () => {
+    mock.api
+      .mockRejectedValueOnce(new Error('Suppression hors ligne'))
+      .mockResolvedValueOnce({ revision: 2 })
+      .mockResolvedValueOnce({ success: true });
+    const w = { ...startWorkout(), revision: 1 };
+    const { result } = renderHook(() => useWorkoutSave(w, user, () => {}));
+    act(() => result.current.change({ ...w, notes: 'À conserver' }));
+    await act(async () => {
+      await expect(result.current.remove()).rejects.toThrow('hors ligne');
+    });
+    expect(result.current.status).toBe('delete-error');
+    expect(result.current.workout.notes).toBe('À conserver');
+    expect(localStorage.getItem(`forge:recovery:${user}:${w.id}`)).not.toBeNull();
+    await act(async () => {
+      await result.current.save();
+    });
+    expect(result.current.status).toBe('saved');
+    await act(async () => {
+      await result.current.remove();
+    });
+    expect(JSON.parse(mock.api.mock.calls[2][1].body).revision).toBe(2);
+    expect(result.current.status).toBe('deleted');
+  });
+  it('conserve la récupération et bloque les sauvegardes après un conflit de suppression', async () => {
+    mock.api.mockRejectedValue(Object.assign(new Error('La séance a changé'), { status: 409 }));
+    const w = { ...startWorkout(), revision: 1 };
+    const { result } = renderHook(() => useWorkoutSave(w, user, () => {}));
+    act(() => result.current.change({ ...w, notes: 'À conserver' }));
+    await act(async () => {
+      await result.current.remove().catch(() => {});
+    });
+    expect(result.current.status).toBe('conflict');
+    expect(localStorage.getItem(`forge:recovery:${user}:${w.id}`)).not.toBeNull();
+    await expect(result.current.save()).rejects.toThrow('Conflit');
+    expect(mock.api).toHaveBeenCalledTimes(1);
+  });
 });
