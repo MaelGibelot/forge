@@ -185,10 +185,12 @@ export function RestInput({
   value,
   onChange,
   label = 'Repos réalisé',
+  maxMinutes = 120,
 }: {
   value: number | null;
   onChange: (v: number | null) => void;
   label?: string;
+  maxMinutes?: number;
 }) {
   return (
     <div className="rest-input">
@@ -197,7 +199,7 @@ export function RestInput({
         inputMode="numeric"
         type="number"
         min="0"
-        max="120"
+        max={maxMinutes}
         value={value === null ? '' : Math.floor(value / 60)}
         placeholder="min"
         onChange={(e) =>

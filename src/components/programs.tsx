@@ -540,6 +540,25 @@ export function Targets({
 }) {
   const set = (key: keyof ProgramExercise['target'], n: number | null) =>
     onChange({ ...e, target: { ...e.target, [key]: n } });
+  if (e.load_kind === 'cardio')
+    return (
+      <div className="stack">
+        <Field label="Nombre d’intervalles cardio">
+          <NumberField
+            label="Nombre d’intervalles cardio"
+            min={1}
+            max={30}
+            step={1}
+            value={e.target.sets}
+            onChange={(n) => set('sets', n ?? 1)}
+          />
+        </Field>
+        <p className="muted" style={{ fontSize: 12 }}>
+          La durée et la distance seront saisies pendant la séance. Ajoutez l’allure, la résistance
+          et l’objectif dans les notes de l’exercice.
+        </p>
+      </div>
+    );
   return (
     <>
       <div className="field-grid">

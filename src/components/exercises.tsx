@@ -23,15 +23,32 @@ export function ExercisePicker({
 }) {
   const { data } = useData();
   const [q, setQ] = useState(''),
-    [muscle, setMuscle] = useState('');
+    [muscle, setMuscle] = useState(''),
+    [collection, setCollection] = useState(''),
+    [limit, setLimit] = useState(60);
   const results = data.exercises.filter(
     (e) =>
-      e.name.toLocaleLowerCase('fr').includes(q.toLocaleLowerCase('fr')) &&
+      `${e.name} ${e.english_name ?? ''} ${e.category}`
+        .toLocaleLowerCase('fr')
+        .includes(q.toLocaleLowerCase('fr')) &&
+      (!collection ||
+        (collection === 'technogym'
+          ? e.category.startsWith('Technogym ·')
+          : e.load_kind === 'cardio')) &&
       (!muscle || e.primary_muscle === muscle),
   );
   return (
     <Modal title="Ajouter un exercice" onClose={onClose}>
       <div className="search-bar">
+        <select
+          aria-label="Collection"
+          value={collection}
+          onChange={(e) => setCollection(e.target.value)}
+        >
+          <option value="">Toutes les collections</option>
+          <option value="technogym">Technogym</option>
+          <option value="cardio">Cardio</option>
+        </select>
         <input
           aria-label="Rechercher un exercice"
           placeholder="Rechercher un mouvement…"
@@ -50,7 +67,7 @@ export function ExercisePicker({
         </select>
       </div>
       <div className="picker-list">
-        {results.map((e) => (
+        {results.slice(0, limit).map((e) => (
           <button key={e.id} onClick={() => onSelect(e)}>
             <span>
               {e.name}
@@ -68,6 +85,11 @@ export function ExercisePicker({
             description="Essayez un autre nom ou groupe musculaire."
           />
         )}
+        {results.length > limit && (
+          <Button variant="secondary" onClick={() => setLimit((n) => n + 60)}>
+            Afficher plus d’exercices ({results.length - limit} restants)
+          </Button>
+        )}
       </div>
     </Modal>
   );
@@ -78,16 +100,26 @@ export function ExerciseLibrary() {
     [muscle, setMuscle] = useState(''),
     [eq, setEq] = useState(''),
     [category, setCategory] = useState(''),
+    [collection, setCollection] = useState(''),
     [create, setCreate] = useState(false);
-  const results = data.exercises.filter(
-    (e) =>
-      `${e.name} ${e.english_name ?? ''}`
-        .toLocaleLowerCase('fr')
-        .includes(q.toLocaleLowerCase('fr')) &&
-      (!muscle || e.primary_muscle === muscle) &&
-      (!eq || e.equipment === eq) &&
-      (!category || e.category === category),
-  );
+  const [limit, setLimit] = useState(48);
+  const results = data.exercises
+    .filter(
+      (e) =>
+        `${e.name} ${e.english_name ?? ''}`
+          .toLocaleLowerCase('fr')
+          .includes(q.toLocaleLowerCase('fr')) &&
+        (!muscle || e.primary_muscle === muscle) &&
+        (!eq || e.equipment === eq) &&
+        (!category || e.category === category),
+    )
+    .filter(
+      (e) =>
+        !collection ||
+        (collection === 'technogym'
+          ? e.category.startsWith('Technogym ·')
+          : e.load_kind === 'cardio'),
+    );
   return (
     <>
       <PageTitle
@@ -102,6 +134,18 @@ export function ExerciseLibrary() {
         }
       />
       <div className="search-bar">
+        <select
+          aria-label="Collection"
+          value={collection}
+          onChange={(e) => {
+            setCollection(e.target.value);
+            setCategory('');
+          }}
+        >
+          <option value="">Toutes les collections</option>
+          <option value="technogym">Technogym</option>
+          <option value="cardio">Cardio</option>
+        </select>
         <div className="search-input">
           <Search size={18} />
           <input
@@ -135,7 +179,7 @@ export function ExerciseLibrary() {
         </select>
       </div>
       <div className="exercise-grid">
-        {results.map((e) => (
+        {results.slice(0, limit).map((e) => (
           <Link key={e.id} href={`/exercices/${e.id}`} className="card exercise-card">
             <div className="exercise-card-visual">
               <span className="badge">{e.equipment}</span>
@@ -152,6 +196,18 @@ export function ExerciseLibrary() {
           </Link>
         ))}
       </div>
+      <p className="muted" style={{ fontSize: 12, marginTop: 16 }}>
+        {Math.min(limit, results.length)} / {results.length} exercices affichés
+      </p>
+      {results.length > limit && (
+        <Button
+          variant="secondary"
+          style={{ marginTop: 16 }}
+          onClick={() => setLimit((n) => n + 48)}
+        >
+          Afficher plus d’exercices
+        </Button>
+      )}
       {!results.length && (
         <Empty
           icon={<BookOpen />}
@@ -235,6 +291,7 @@ function CustomExercise({
             <option value="external">Charge externe (kg)</option>
             <option value="bodyweight">Poids du corps</option>
             <option value="assisted">Assistance (kg)</option>
+            <option value="cardio">Cardio (durée et distance)</option>
           </select>
         </Field>
         <Field label="Description">
@@ -337,88 +394,91 @@ export function ExerciseDetail({ id }: { id: string }) {
             )}
             {exercise.load_kind !== 'external' && (
               <div className="setup-notice" style={{ marginTop: 18 }}>
-                Les répétitions sont suivies séparément. Le poids du corps et l’assistance sont
-                exclus du volume externe et du 1RM estimé.
+                {exercise.load_kind === 'cardio'
+                  ? 'La durée et la distance sont suivies séparément du volume de musculation et des records de charge.'
+                  : 'Les répétitions sont suivies séparément. Le poids du corps et l’assistance sont exclus du volume externe et du 1RM estimé.'}
               </div>
             )}
           </section>
-          <section className="card stack">
-            <div>
-              <div className="eyebrow">VOTRE PROCHAIN PAS</div>
-              <h2>{rec?.title ?? 'Chargement de l’historique…'}</h2>
-              <p className="muted" style={{ fontSize: 12, marginTop: 10 }}>
-                {rec?.reason}
+          {exercise.load_kind !== 'cardio' && (
+            <section className="card stack">
+              <div>
+                <div className="eyebrow">VOTRE PROCHAIN PAS</div>
+                <h2>{rec?.title ?? 'Chargement de l’historique…'}</h2>
+                <p className="muted" style={{ fontSize: 12, marginTop: 10 }}>
+                  {rec?.reason}
+                </p>
+              </div>
+              <div className="field-grid">
+                <Field label="Incrément (kg)">
+                  <NumberField
+                    label="Incrément"
+                    min={0.1}
+                    max={100}
+                    value={increment}
+                    onChange={(n) => setIncrement(n ?? 2.5)}
+                  />
+                </Field>
+                <Field label="Répétitions min.">
+                  <NumberField
+                    label="Minimum"
+                    min={1}
+                    max={100}
+                    step={1}
+                    value={min}
+                    onChange={(n) => setMin(n ?? 8)}
+                  />
+                </Field>
+                <Field label="Répétitions max.">
+                  <NumberField
+                    label="Maximum"
+                    min={1}
+                    max={100}
+                    step={1}
+                    value={max}
+                    onChange={(n) => setMax(n ?? 12)}
+                  />
+                </Field>
+              </div>
+              <p className="muted" style={{ fontSize: 11 }}>
+                Ces réglages préremplissent les nouveaux ajouts aux programmes. Les objectifs d’une
+                séance existante restent modifiables dans son programme.
               </p>
-            </div>
-            <div className="field-grid">
-              <Field label="Incrément (kg)">
-                <NumberField
-                  label="Incrément"
-                  min={0.1}
-                  max={100}
-                  value={increment}
-                  onChange={(n) => setIncrement(n ?? 2.5)}
-                />
-              </Field>
-              <Field label="Répétitions min.">
-                <NumberField
-                  label="Minimum"
-                  min={1}
-                  max={100}
-                  step={1}
-                  value={min}
-                  onChange={(n) => setMin(n ?? 8)}
-                />
-              </Field>
-              <Field label="Répétitions max.">
-                <NumberField
-                  label="Maximum"
-                  min={1}
-                  max={100}
-                  step={1}
-                  value={max}
-                  onChange={(n) => setMax(n ?? 12)}
-                />
-              </Field>
-            </div>
-            <p className="muted" style={{ fontSize: 11 }}>
-              Ces réglages préremplissent les nouveaux ajouts aux programmes. Les objectifs d’une
-              séance existante restent modifiables dans son programme.
-            </p>
-            <ErrorBox message={error} />
-            {saved && (
-              <p className="green" role="status">
-                Réglages enregistrés.
-              </p>
-            )}
-            <Button
-              variant="secondary"
-              busy={busy}
-              onClick={async () => {
-                setBusy(true);
-                setError(null);
-                try {
-                  await api('/api/preferences', {
-                    method: 'PATCH',
-                    body: JSON.stringify({
-                      exercise_id: id,
-                      increment,
-                      reps_min: min,
-                      reps_max: max,
-                    }),
-                  });
-                  await reload();
-                  setSaved(true);
-                } catch (e) {
-                  setError((e as Error).message);
-                } finally {
-                  setBusy(false);
-                }
-              }}
-            >
-              Enregistrer les réglages
-            </Button>
-          </section>
+              <ErrorBox message={error} />
+              {saved && (
+                <p className="green" role="status">
+                  Réglages enregistrés.
+                </p>
+              )}
+              <Button
+                variant="secondary"
+                busy={busy}
+                onClick={async () => {
+                  setBusy(true);
+                  setError(null);
+                  try {
+                    await api('/api/preferences', {
+                      method: 'PATCH',
+                      body: JSON.stringify({
+                        exercise_id: id,
+                        increment,
+                        reps_min: min,
+                        reps_max: max,
+                      }),
+                    });
+                    await reload();
+                    setSaved(true);
+                  } catch (e) {
+                    setError((e as Error).message);
+                  } finally {
+                    setBusy(false);
+                  }
+                }}
+              >
+                Enregistrer les réglages
+              </Button>
+            </section>
+          )}
           <section className="card">
             <h2>Autres mouvements du même groupe</h2>
             <div className="flex" style={{ marginTop: 15 }}>

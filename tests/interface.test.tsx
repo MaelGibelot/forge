@@ -7,12 +7,14 @@ import { ProgramEditor } from '../src/components/programs';
 import { Statistics } from '../src/components/statistics';
 import { MuscleActivity } from '../src/components/anatomy';
 import { WorkoutPage } from '../src/components/workout';
+import { ExerciseLibrary, ExercisePicker } from '../src/components/exercises';
 import {
   defaults,
   programSchema,
   startWorkout,
   newEntry,
   newSet,
+  workoutSchema,
   type Workout,
   type WorkoutExercise,
 } from '../src/lib/domain';
@@ -65,6 +67,90 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 describe('parcours des composants privés (DOM, sans service Auth simulé)', () => {
+  it('retrouve une machine Technogym dans la bibliothèque et le sélecteur', async () => {
+    const machine = catalog.find((e) => e.name.includes('Skillrow'))!;
+    const library = render(<ExerciseLibrary />);
+    fireEvent.change(screen.getByRole('combobox', { name: 'Collection' }), {
+      target: { value: 'technogym' },
+    });
+    fireEvent.change(screen.getByRole('textbox', { name: 'Rechercher' }), {
+      target: { value: 'Skillrow' },
+    });
+    expect(screen.getByRole('link', { name: new RegExp('Skillrow') }).getAttribute('href')).toBe(
+      `/exercices/${machine.id}`,
+    );
+    library.unmount();
+    const select = vi.fn();
+    render(<ExercisePicker onClose={() => {}} onSelect={select} />);
+    fireEvent.change(screen.getByRole('combobox', { name: 'Collection' }), {
+      target: { value: 'cardio' },
+    });
+    fireEvent.change(screen.getByRole('textbox', { name: 'Rechercher un exercice' }), {
+      target: { value: 'Skillrow' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: new RegExp('Skillrow') }));
+    expect(select).toHaveBeenCalledWith(machine);
+  });
+  it('prépare un programme cardio avec des intervalles et sans objectifs de charge', async () => {
+    state.api.mockResolvedValue({ revision: 1 });
+    render(<ProgramEditor />);
+    fireEvent.change(screen.getByLabelText('Nom du programme'), {
+      target: { value: 'Cardio test' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Ajouter un exercice' }));
+    fireEvent.change(screen.getByLabelText('Rechercher un exercice'), {
+      target: { value: 'Skillrow' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: new RegExp('Skillrow') }));
+    expect(screen.getByRole('spinbutton', { name: 'Nombre d’intervalles cardio' })).toBeTruthy();
+    expect(screen.queryByRole('spinbutton', { name: 'Répétitions minimales' })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Enregistrer le programme' }));
+    await waitFor(() => expect(state.push).toHaveBeenCalledWith('/programmes'));
+    expect(
+      programSchema.parse(JSON.parse(state.api.mock.calls[0][1].body)).days[0].exercises[0],
+    ).toMatchObject({ load_kind: 'cardio', target: { sets: 1 } });
+  });
+  it('saisit et termine une séance cardio avec une durée et une distance réelles', async () => {
+    const machine = catalog.find((e) => e.name.includes('Skillrow'))!;
+    const entry = newEntry(machine, 0);
+    const w: Workout = {
+      ...startWorkout(),
+      revision: 1,
+      exercises: [{ ...entry, technique_ok: false, sets: [newSet(0, entry.target, 'cardio')] }],
+    };
+    let submitted: Workout | undefined;
+    state.api.mockImplementation(async (_url: string, options?: RequestInit) => {
+      if (options?.method === 'POST') {
+        submitted = workoutSchema.parse(JSON.parse(String(options.body)));
+        return { revision: 2 };
+      }
+      return [w];
+    });
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    render(<WorkoutPage id={w.id} />);
+    await screen.findByRole('spinbutton', { name: 'Durée intervalle 1, minutes' });
+    expect(
+      (screen.getByRole('checkbox', { name: 'Intervalle 1 effectué' }) as HTMLInputElement)
+        .disabled,
+    ).toBe(true);
+    fireEvent.change(screen.getByRole('spinbutton', { name: 'Durée intervalle 1, minutes' }), {
+      target: { value: '20' },
+    });
+    fireEvent.change(screen.getByRole('spinbutton', { name: 'Distance intervalle 1' }), {
+      target: { value: '4.5' },
+    });
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Intervalle 1 effectué' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Terminer la séance' }));
+    await waitFor(() => expect(state.push).toHaveBeenCalledWith('/historique'));
+    expect(submitted!.status).toBe('completed');
+    expect(submitted!.exercises[0].sets[0]).toMatchObject({
+      duration_seconds: 1200,
+      distance_km: 4.5,
+      reps: 0,
+      weight: null,
+      completed: true,
+    });
+  });
   it('rend les rubriques supplémentaires et la déconnexion accessibles sur mobile', () => {
     render(
       <Shell name="Jean">

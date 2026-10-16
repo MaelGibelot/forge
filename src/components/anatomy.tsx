@@ -39,6 +39,10 @@ const shapes: { muscle: Muscle; front?: string; back?: string }[] = [
     front: 'M36 185 L48 183 50 211 43 230 36 218Z M76 183 L88 185 88 218 81 230 74 211Z',
     back: 'M34 182 Q44 177 54 183 L49 217 43 230 35 215Z M70 183 Q80 177 90 182 L89 215 81 230 75 217Z',
   },
+  {
+    muscle: 'Adducteurs',
+    front: 'M53 125 L59 122 59 151 53 166 49 152Z M65 122 L71 125 75 152 71 166 65 151Z',
+  },
 ];
 function BodyDiagram({
   back,

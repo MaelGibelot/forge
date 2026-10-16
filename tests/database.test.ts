@@ -47,10 +47,72 @@ afterAll(async () => {
   await db.close();
 });
 describe('PostgreSQL embarqué : migrations, transactions et RLS', () => {
-  it('installe les tables et les 62 exercices sans doublons au re-seed', async () => {
+  it('enregistre et isole les intervalles cardio, y compris lors d’un accès SQL direct', async () => {
+    await asUser(alice);
+    const machine = catalog.find((e) => e.load_kind === 'cardio')!;
+    const entry = newEntry(machine, 0);
+    const w = {
+      ...startWorkout(),
+      status: 'completed' as const,
+      finished_at: new Date().toISOString(),
+      exercises: [
+        {
+          ...entry,
+          technique_ok: false,
+          sets: [
+            {
+              ...newSet(0, entry.target, 'cardio'),
+              duration_seconds: 1800,
+              distance_km: 5.2,
+              completed: true,
+            },
+          ],
+        },
+      ],
+    };
+    const saved = await rpc('save_workout', w);
+    const revision = saved.rows[0].revision;
+    const read = await db.query<{ w: (typeof w)[] }>(
+      'select public.read_workouts(0,30,null,$1::uuid) as w',
+      [w.id],
+    );
+    expect(read.rows[0].w[0].exercises[0].sets[0]).toMatchObject({
+      duration_seconds: 1800,
+      distance_km: 5.2,
+      reps: 0,
+      weight: null,
+    });
+    const invalid = structuredClone(w);
+    invalid.revision = revision;
+    invalid.exercises[0].sets[0].reps = 10;
+    await expect(rpc('save_workout', invalid)).rejects.toThrow('Intervalle cardio invalide');
+    expect(
+      (
+        await db.query('select duration_seconds from public.workout_sets where id=$1', [
+          w.exercises[0].sets[0].id,
+        ])
+      ).rows,
+    ).toEqual([{ duration_seconds: 1800 }]);
+    await asUser(bob);
+    expect(
+      (await db.query('select * from public.workout_sets where id=$1', [w.exercises[0].sets[0].id]))
+        .rows,
+    ).toHaveLength(0);
+    expect(
+      (
+        await db.query(
+          'update public.workout_sets set duration_seconds=20 where id=$1 returning id',
+          [w.exercises[0].sets[0].id],
+        )
+      ).rows,
+    ).toHaveLength(0);
+    await db.exec('reset role');
+    await db.query('delete from public.workout_sessions where id=$1', [w.id]);
+  });
+  it('installe le catalogue complet sans doublons au re-seed', async () => {
     await db.exec(readFileSync('supabase/seed.sql', 'utf8'));
     const r = await db.query<{ n: number }>('select count(*)::int n from public.exercises');
-    expect(r.rows[0].n).toBe(62);
+    expect(r.rows[0].n).toBe(catalog.length);
   });
   it('active RLS sur chaque table publique et privée', async () => {
     const r = await db.query<{ n: number }>(

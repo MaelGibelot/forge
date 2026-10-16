@@ -47,6 +47,8 @@ export function duplicateWorkout(w: Workout): Workout {
         rest_seconds: null,
         rpe: null,
         rir: null,
+        duration_seconds: e.load_kind === 'cardio' ? null : s.duration_seconds,
+        distance_km: e.load_kind === 'cardio' ? null : s.distance_km,
       })),
     })),
   };

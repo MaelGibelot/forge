@@ -3,6 +3,7 @@ import type { Workout, WorkoutExercise, WorkoutSet, Preferences } from './domain
 export function eligible(s: WorkoutSet, includeWarmup = false) {
   return (
     s.completed &&
+    s.duration_seconds == null &&
     s.reps > 0 &&
     Number.isFinite(s.reps) &&
     s.reps <= 500 &&
@@ -118,6 +119,13 @@ export function recommendation(
       kind: 'disabled',
       title: 'Recommandations désactivées',
       reason: 'Réactivez-les dans les paramètres.',
+    };
+  if (entry.load_kind === 'cardio')
+    return {
+      kind: 'disabled',
+      title: 'Suivi cardio',
+      reason:
+        'Consignez la durée, la distance et vos sensations pour comparer des intervalles sur le même appareil.',
     };
   const insufficient: Suggestion = {
     kind: 'insufficient',
@@ -250,6 +258,23 @@ export function recommendation(
 }
 export const number = (n: number, digits = 0) =>
   new Intl.NumberFormat('fr-FR', { maximumFractionDigits: digits }).format(n);
+export function cardioTotals(workout: Workout, includeWarmup = true) {
+  return workout.exercises
+    .filter((e) => e.load_kind === 'cardio')
+    .flatMap((e) => e.sets)
+    .filter(
+      (s) => s.completed && (s.duration_seconds ?? 0) > 0 && (includeWarmup || s.type !== 'warmup'),
+    )
+    .reduce(
+      (sum, s) => ({
+        seconds: sum.seconds + (s.duration_seconds ?? 0),
+        distance: sum.distance + (s.distance_km ?? 0),
+      }),
+      { seconds: 0, distance: 0 },
+    );
+}
+export const duration = (seconds: number) =>
+  `${Math.floor(seconds / 60)} min${seconds % 60 ? ` ${seconds % 60} s` : ''}`;
 export const shortDate = (date: string) =>
   new Intl.DateTimeFormat('fr-FR', {
     day: 'numeric',

@@ -6,7 +6,7 @@ import { useData } from './store';
 import { useStartWorkout } from './dashboard';
 import { Button, PageTitle, Empty, ErrorBox, api } from './ui';
 import type { Workout } from '@/lib/domain';
-import { workoutVolume, eligible, number, shortDate } from '@/lib/metrics';
+import { workoutVolume, eligible, number, shortDate, cardioTotals, duration } from '@/lib/metrics';
 export function History() {
   const { data, reload } = useData();
   const launch = useStartWorkout();
@@ -100,7 +100,18 @@ export function History() {
                         séries de travail
                       </small>
                     </td>
-                    <td>{number(workoutVolume(w))} kg</td>
+                    <td>
+                      {number(workoutVolume(w))} kg
+                      {cardioTotals(w).seconds > 0 && (
+                        <>
+                          <br />
+                          <small>
+                            {duration(cardioTotals(w).seconds)} cardio ·{' '}
+                            {number(cardioTotals(w).distance, 2)} km renseignés
+                          </small>
+                        </>
+                      )}
+                    </td>
                     <td>
                       {w.finished_at
                         ? `${Math.round((Date.parse(w.finished_at) - Date.parse(w.started_at)) / 60000)} min`

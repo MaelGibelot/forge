@@ -11,6 +11,7 @@ export const muscles = [
   'Fessiers',
   'Mollets',
   'Abdominaux',
+  'Adducteurs',
 ] as const;
 export type Muscle = (typeof muscles)[number];
 export const equipment = [
@@ -20,6 +21,7 @@ export const equipment = [
   'Poulie',
   'Poids du corps',
   'Élastique',
+  'Cardio',
 ] as const;
 export type Equipment = (typeof equipment)[number];
 export interface Exercise {
@@ -35,7 +37,7 @@ export interface Exercise {
   instructions: string[];
   tips: string;
   mistakes: string;
-  load_kind: 'external' | 'bodyweight' | 'assisted';
+  load_kind: 'external' | 'bodyweight' | 'assisted' | 'cardio';
   supports_1rm: boolean;
 }
 const uuid = z.uuid();
@@ -52,6 +54,8 @@ export const setSchema = z.object({
   type: z.enum(['normal', 'warmup', 'drop']),
   completed: z.boolean(),
   notes: z.string().max(1000),
+  duration_seconds: z.number().int().min(0).max(86400).nullable().optional(),
+  distance_km: optionalNumber(0, 10000).optional(),
 });
 export type WorkoutSet = z.infer<typeof setSchema>;
 export const targetSchema = z
@@ -74,7 +78,7 @@ const entrySchema = z.object({
   exercise_id: uuid,
   name: z.string().min(1).max(120),
   primary_muscle: z.enum(muscles),
-  load_kind: z.enum(['external', 'bodyweight', 'assisted']),
+  load_kind: z.enum(['external', 'bodyweight', 'assisted', 'cardio']),
   supports_1rm: z.boolean(),
   position: z.number().int().min(0).max(100),
   group_id: uuid.nullable(),
@@ -145,12 +149,29 @@ export const workoutSchema = z
       w.status !== 'completed' ||
       (!!w.finished_at &&
         Date.parse(w.finished_at) >= Date.parse(w.started_at) &&
-        w.exercises.some((e) => e.sets.some((s) => s.completed && s.reps > 0))),
+        w.exercises.some((e) =>
+          e.sets.some(
+            (s) =>
+              s.completed &&
+              (e.load_kind === 'cardio' ? (s.duration_seconds ?? 0) > 0 : s.reps > 0),
+          ),
+        )),
     'Une séance terminée doit contenir au moins une série réalisée et des dates cohérentes.',
   )
   .refine(
-    (w) => w.exercises.every((e) => e.sets.every((s) => !s.completed || s.reps > 0)),
-    'Une série effectuée doit contenir au moins une répétition.',
+    (w) =>
+      w.exercises.every((e) =>
+        e.sets.every((s) =>
+          e.load_kind === 'cardio'
+            ? s.reps === 0 &&
+              s.weight === null &&
+              s.rir === null &&
+              s.type !== 'drop' &&
+              (!s.completed || (s.duration_seconds ?? 0) > 0)
+            : s.duration_seconds == null && s.distance_km == null && (!s.completed || s.reps > 0),
+        ),
+      ),
+    'Une série effectuée doit contenir au moins une répétition ; un intervalle cardio doit avoir une durée positive, sans charge ni répétitions.',
   )
   .refine(
     (w) =>
@@ -221,6 +242,9 @@ export function newEntry(
     group_id: null,
     target: {
       ...targetDefaults,
+      ...(e.load_kind === 'cardio'
+        ? { sets: 1, reps_min: 1, reps_max: 1, rest_seconds: null }
+        : {}),
       ...(setting ? { reps_min: setting.reps_min, reps_max: setting.reps_max } : {}),
     },
     notes: '',
@@ -231,18 +255,24 @@ export function newEntry(
         : 2.5),
   };
 }
-export function newSet(position: number, target: Target): WorkoutSet {
+export function newSet(
+  position: number,
+  target: Target,
+  kind: Exercise['load_kind'] = 'external',
+): WorkoutSet {
   return {
     id: crypto.randomUUID(),
     position,
-    weight: target.weight,
-    reps: target.reps_min,
+    weight: kind === 'cardio' ? null : target.weight,
+    reps: kind === 'cardio' ? 0 : target.reps_min,
     rpe: null,
     rir: null,
     rest_seconds: null,
     type: 'normal',
     completed: false,
     notes: '',
+    duration_seconds: null,
+    distance_km: null,
   };
 }
 export function startWorkout(day?: ProgramDay, previous: Workout[] = []): Workout {
@@ -268,11 +298,13 @@ export function startWorkout(day?: ProgramDay, previous: Workout[] = []): Workou
           target: { ...e.target },
           technique_ok: false,
           sets: Array.from({ length: e.target.sets }, (_, i) => ({
-            ...newSet(i, e.target),
+            ...newSet(i, e.target, e.load_kind),
             weight:
-              e.target.weight ??
-              last?.sets.filter((s) => s.type === 'normal' && s.completed)[i]?.weight ??
-              null,
+              e.load_kind === 'cardio'
+                ? null
+                : (e.target.weight ??
+                  last?.sets.filter((s) => s.type === 'normal' && s.completed)[i]?.weight ??
+                  null),
           })),
         };
       }) ?? [],

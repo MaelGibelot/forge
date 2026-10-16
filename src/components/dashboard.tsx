@@ -6,7 +6,15 @@ import { ArrowUpRight, Plus, Dumbbell, Layers, Weight, Trophy, CalendarDays } fr
 import { useData, allWorkouts } from './store';
 import { Button, PageTitle, Empty, ErrorBox, api } from './ui';
 import { type Workout, type ProgramDay, startWorkout } from '@/lib/domain';
-import { workoutVolume, records, number, shortDate, eligible } from '@/lib/metrics';
+import {
+  workoutVolume,
+  records,
+  number,
+  shortDate,
+  eligible,
+  cardioTotals,
+  duration,
+} from '@/lib/metrics';
 export function useStartWorkout() {
   const { data, setWorkout } = useData();
   const router = useRouter();
@@ -49,6 +57,7 @@ export function SessionRow({ workout: w }: { workout: Workout }) {
         <strong>{w.name}</strong>
         <p>
           {w.exercises.length} exercices · {sets.length} séries{' '}
+          {cardioTotals(w).seconds > 0 && `· ${duration(cardioTotals(w).seconds)} cardio `}
           <span className="orange">
             {w.status === 'draft' ? '· Brouillon' : w.status === 'active' ? '· En cours' : ''}
           </span>

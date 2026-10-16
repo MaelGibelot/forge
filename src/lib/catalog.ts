@@ -1,4 +1,5 @@
 import type { Exercise, Muscle, Equipment } from './domain';
+import { technogymCatalog } from './technogym.ts';
 
 // Textes originaux et schémas originaux : aucun média tiers n'est redistribué.
 // La classification décrit la sollicitation générale, pas un % d'activation.
@@ -467,7 +468,7 @@ const rows: Row[] = [
     'Debout de profil à la poulie, tendez les bras sans laisser le buste tourner.',
   ],
 ];
-export const catalog: Exercise[] = rows.map(
+const originalCatalog: Exercise[] = rows.map(
   ([name, primary_muscle, eq, secondary_muscles, cue, english_name, rm], i) => ({
     id: `10000000-0000-4000-8000-${String(i + 1).padStart(12, '0')}`,
     user_id: null,
@@ -495,3 +496,4 @@ export const catalog: Exercise[] = rows.map(
     supports_1rm: rm ?? false,
   }),
 );
+export const catalog: Exercise[] = [...originalCatalog, ...technogymCatalog];

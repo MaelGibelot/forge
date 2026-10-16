@@ -16,6 +16,7 @@ import {
   number,
   shortDate,
   recommendation,
+  cardioTotals,
 } from '@/lib/metrics';
 const ProgressChart = dynamic(() => import('./charts').then((m) => m.ProgressChart), {
   ssr: false,
@@ -26,7 +27,7 @@ export function Statistics() {
   const [now] = useState(() => Date.now());
   const [period, setPeriod] = useState(90),
     [exerciseId, setExerciseId] = useState(data.exercises[0]?.id ?? ''),
-    [metric, setMetric] = useState('weight'),
+    [selectedMetric, setMetric] = useState('weight'),
     [warmup, setWarmup] = useState(false),
     [atWeight, setAtWeight] = useState<number | null>(20),
     [workouts, setWorkouts] = useState<Workout[] | null>(null),
@@ -49,12 +50,35 @@ export function Statistics() {
     () => workouts?.filter((w) => w.status === 'completed') ?? [],
     [workouts],
   );
+  const exercise = data.exercises.find((e) => e.id === exerciseId);
+  const isCardio = exercise?.load_kind === 'cardio';
+  const metric = isCardio
+    ? ['duration', 'distance'].includes(selectedMetric)
+      ? selectedMetric
+      : 'duration'
+    : ['duration', 'distance'].includes(selectedMetric)
+      ? 'weight'
+      : selectedMetric;
   const rows = completed.toReversed().flatMap((w) => {
     const es = w.exercises.filter((e) => e.exercise_id === exerciseId);
     if (!es.length) return [];
     const e = es[0];
     const sets = es.flatMap((e) => e.sets).filter((s) => eligible(s, warmup));
     let value: number | null = null;
+    if (e.load_kind === 'cardio' && ['duration', 'distance'].includes(metric)) {
+      const intervals = es
+        .flatMap((x) => x.sets)
+        .filter(
+          (s) => s.completed && (s.duration_seconds ?? 0) > 0 && (warmup || s.type !== 'warmup'),
+        );
+      value =
+        metric === 'duration'
+          ? intervals.reduce((n, s) => n + (s.duration_seconds ?? 0), 0) / 60
+          : intervals.some((s) => s.distance_km != null)
+            ? intervals.reduce((n, s) => n + (s.distance_km ?? 0), 0)
+            : null;
+      if (!intervals.length) value = null;
+    }
     if (metric === 'weight' && e.load_kind === 'external') {
       const weights = sets.flatMap((s) => (s.weight === null ? [] : [s.weight]));
       value = weights.length ? Math.max(...weights) : null;
@@ -82,7 +106,7 @@ export function Statistics() {
       (n, w) =>
         n +
         w.exercises
-          .filter((e) => e.primary_muscle === m)
+          .filter((e) => e.load_kind !== 'cardio' && e.primary_muscle === m)
           .reduce((n, e) => n + e.sets.filter((s) => eligible(s, warmup)).length, 0),
       0,
     ),
@@ -93,14 +117,22 @@ export function Statistics() {
       (n, w) =>
         n +
         w.exercises
-          .filter((e) =>
-            data.exercises.find((x) => x.id === e.exercise_id)?.secondary_muscles.includes(m),
+          .filter(
+            (e) =>
+              e.load_kind !== 'cardio' &&
+              data.exercises.find((x) => x.id === e.exercise_id)?.secondary_muscles.includes(m),
           )
           .reduce((n, e) => n + e.sets.filter((s) => eligible(s, warmup)).length, 0),
       0,
     ),
   }));
-  const exercise = data.exercises.find((e) => e.id === exerciseId);
+  const cardio = completed.reduce(
+    (sum, w) => {
+      const c = cardioTotals(w, warmup);
+      return { seconds: sum.seconds + c.seconds, distance: sum.distance + c.distance };
+    },
+    { seconds: 0, distance: 0 },
+  );
   const latest = completed.flatMap((w) => w.exercises).find((e) => e.exercise_id === exerciseId);
   const entry: WorkoutExercise | undefined =
     latest ??
@@ -172,12 +204,12 @@ export function Statistics() {
                 ),
             'séances / semaine',
           ],
+          ['Durée cardio', cardio.seconds / 60, 'minutes sur la période'],
+          ['Distance cardio', cardio.distance, 'km renseignés'],
         ].map(([label, v, foot], i) => (
           <div className="card metric" key={i}>
             <div className="metric-top">{label}</div>
-            <div className="metric-value">
-              {workouts ? number(Number(v), i === 3 ? 1 : 0) : '—'}
-            </div>
+            <div className="metric-value">{workouts ? number(Number(v), i >= 3 ? 2 : 0) : '—'}</div>
             <div className="metric-foot">{foot}</div>
           </div>
         ))}
@@ -211,11 +243,20 @@ export function Statistics() {
             value={metric}
             onChange={(e) => setMetric(e.target.value)}
           >
-            <option value="weight">Charge maximale</option>
-            <option value="reps">Répétitions à charge donnée</option>
-            <option value="volume">Volume de travail</option>
-            <option value="e1rm">1RM estimé</option>
-            <option value="sets">Nombre de séries</option>
+            {isCardio ? (
+              <>
+                <option value="duration">Durée cardio</option>
+                <option value="distance">Distance cardio</option>
+              </>
+            ) : (
+              <>
+                <option value="weight">Charge maximale</option>
+                <option value="reps">Répétitions à charge donnée</option>
+                <option value="volume">Volume de travail</option>
+                <option value="e1rm">1RM estimé</option>
+                <option value="sets">Nombre de séries</option>
+              </>
+            )}
           </select>
           {metric === 'reps' && (
             <div style={{ width: 100 }}>
@@ -231,7 +272,17 @@ export function Statistics() {
         {rows.some((r) => r.value !== null) ? (
           <ProgressChart
             rows={rows}
-            unit={metric === 'sets' ? 'séries' : metric === 'reps' ? 'rép.' : 'kg'}
+            unit={
+              metric === 'duration'
+                ? 'min'
+                : metric === 'distance'
+                  ? 'km'
+                  : metric === 'sets'
+                    ? 'séries'
+                    : metric === 'reps'
+                      ? 'rép.'
+                      : 'kg'
+            }
           />
         ) : (
           <Empty
@@ -241,9 +292,11 @@ export function Statistics() {
           />
         )}
         <p className="muted" style={{ fontSize: 10, marginTop: 12 }}>
-          {metric === 'e1rm'
-            ? 'Estimation Epley : charge × (1 + répétitions / 30). Séries normales de 1 à 10 répétitions, exercices compatibles uniquement. Une répétition utilise la charge réelle.'
-            : 'Les charges externes, le poids du corps et les séries assistées sont traités séparément. Les haltères sont consignés par haltère, sans doublement automatique.'}
+          {isCardio
+            ? 'Durée réellement effectuée et distance renseignée sur cet appareil. Les intervalles cardio ne comptent pas dans les séries musculaires, le volume externe ou les records de charge.'
+            : metric === 'e1rm'
+              ? 'Estimation Epley : charge × (1 + répétitions / 30). Séries normales de 1 à 10 répétitions, exercices compatibles uniquement. Une répétition utilise la charge réelle.'
+              : 'Les charges externes, le poids du corps et les séries assistées sont traités séparément. Les haltères sont consignés par haltère, sans doublement automatique.'}
         </p>
         {suggestion && (
           <div className="suggestion" style={{ marginTop: 20, marginBottom: 0 }}>

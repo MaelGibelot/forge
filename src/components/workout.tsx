@@ -29,7 +29,15 @@ import {
   type WorkoutExercise,
   type WorkoutSet,
 } from '@/lib/domain';
-import { workoutVolume, number, shortDate, recommendation, records } from '@/lib/metrics';
+import {
+  workoutVolume,
+  number,
+  shortDate,
+  recommendation,
+  records,
+  cardioTotals,
+  duration,
+} from '@/lib/metrics';
 import { move, duplicateWorkout } from '@/lib/clone';
 import { useWorkoutSave } from '@/lib/use-workout-save';
 export function WorkoutPage({ id }: { id: string }) {
@@ -54,6 +62,128 @@ export function WorkoutPage({ id }: { id: string }) {
   if (error) return <ErrorBox message={error} />;
   if (!workout) return <div className="page-loading">Chargement de la séance…</div>;
   return <WorkoutEditor key={id} initial={workout} />;
+}
+
+function CardioIntervals({
+  exercise: e,
+  onChange,
+  edit,
+}: {
+  exercise: WorkoutExercise;
+  onChange: (e: WorkoutExercise) => void;
+  edit: boolean;
+}) {
+  const set = (next: WorkoutSet) =>
+    onChange({ ...e, sets: e.sets.map((s) => (s.id === next.id ? next : s)) });
+  return (
+    <div className="stack">
+      <p className="muted" style={{ fontSize: 12 }}>
+        Durée obligatoire pour valider un intervalle ; distance et effort facultatifs. Indiquez
+        vitesse, inclinaison ou résistance dans les notes.
+      </p>
+      {e.sets.map((s, i) => (
+        <div
+          className="card stack"
+          key={s.id}
+          style={{ background: 'var(--panel2)', marginTop: 14 }}
+        >
+          <div className="flex between">
+            <h3>Intervalle {i + 1}</h3>
+            {edit && (
+              <Button
+                variant="ghost"
+                aria-label={`Supprimer l’intervalle ${i + 1}`}
+                onClick={() =>
+                  onChange({
+                    ...e,
+                    sets: e.sets
+                      .filter((x) => x.id !== s.id)
+                      .map((x, position) => ({ ...x, position })),
+                  })
+                }
+              >
+                <Trash2 size={15} />
+              </Button>
+            )}
+          </div>
+          <div className="field-grid">
+            <Field label="Durée (minutes : secondes)">
+              <RestInput
+                label={`Durée intervalle ${i + 1}`}
+                maxMinutes={1440}
+                value={s.duration_seconds ?? null}
+                onChange={(duration_seconds) =>
+                  set({
+                    ...s,
+                    duration_seconds,
+                    completed: (duration_seconds ?? 0) > 0 && s.completed,
+                  })
+                }
+              />
+            </Field>
+            <Field label="Distance (km) · facultative">
+              <NumberField
+                label={`Distance intervalle ${i + 1}`}
+                nullable
+                max={10000}
+                step={0.01}
+                value={s.distance_km ?? null}
+                onChange={(distance_km) => set({ ...s, distance_km })}
+              />
+            </Field>
+            <Field label="Effort RPE · facultatif">
+              <NumberField
+                label={`RPE intervalle ${i + 1}`}
+                nullable
+                min={1}
+                max={10}
+                value={s.rpe}
+                onChange={(rpe) => set({ ...s, rpe })}
+              />
+            </Field>
+            <Field label="Type">
+              <select
+                aria-label={`Type intervalle ${i + 1}`}
+                value={s.type}
+                onChange={(x) => set({ ...s, type: x.target.value as 'normal' | 'warmup' })}
+              >
+                <option value="normal">Travail</option>
+                <option value="warmup">Échauffement</option>
+              </select>
+            </Field>
+          </div>
+          <Field label="Notes et réglages">
+            <input
+              aria-label={`Notes intervalle ${i + 1}`}
+              maxLength={1000}
+              value={s.notes}
+              onChange={(x) => set({ ...s, notes: x.target.value })}
+            />
+          </Field>
+          <label className="check-label">
+            <input
+              type="checkbox"
+              checked={s.completed}
+              disabled={(s.duration_seconds ?? 0) <= 0}
+              onChange={(x) => set({ ...s, completed: x.target.checked })}
+            />
+            Intervalle {i + 1} effectué
+          </label>
+        </div>
+      ))}
+      {edit && (
+        <Button
+          variant="secondary"
+          onClick={() =>
+            onChange({ ...e, sets: [...e.sets, newSet(e.sets.length, e.target, 'cardio')] })
+          }
+        >
+          <Plus size={15} />
+          Ajouter un intervalle
+        </Button>
+      )}
+    </div>
+  );
 }
 function WorkoutEditor({ initial }: { initial: Workout }) {
   const { data, setWorkout: remember, reload } = useData();
@@ -125,7 +255,7 @@ function WorkoutEditor({ initial }: { initial: Workout }) {
       <PageTitle
         eyebrow={`${shortDate(w.started_at).toUpperCase()} · ${w.status === 'completed' ? 'SÉANCE TERMINÉE' : w.status === 'draft' ? 'BROUILLON' : 'SÉANCE EN COURS'}`}
         title={w.name}
-        description={`${w.exercises.length} exercices · ${done}/${total} séries effectuées · ${number(workoutVolume(w))} kg de volume externe`}
+        description={`${w.exercises.length} exercices · ${done}/${total} séries / intervalles effectués · ${number(workoutVolume(w))} kg de volume externe${cardioTotals(w).seconds ? ` · ${duration(cardioTotals(w).seconds)} de cardio` : ''}`}
         actions={
           <>
             {!edit && (
@@ -397,16 +527,22 @@ function WorkoutEditor({ initial }: { initial: Workout }) {
                   )}
                 </div>
                 <p>
-                  {e.target.sets} × {e.target.reps_min}–{e.target.reps_max} répétitions ·{' '}
-                  {e.primary_muscle} ·{' '}
-                  {e.load_kind === 'assisted'
-                    ? 'Assistance en kg'
-                    : e.load_kind === 'bodyweight'
-                      ? 'Poids du corps'
-                      : 'Charge externe en kg'}
-                  {e.target.rest_seconds !== null
-                    ? ` · repos cible ${Math.floor(e.target.rest_seconds / 60)}:${String(e.target.rest_seconds % 60).padStart(2, '0')}`
-                    : ''}
+                  {e.load_kind === 'cardio' ? (
+                    `${e.target.sets} intervalle(s) cardio · durée et distance`
+                  ) : (
+                    <>
+                      {e.target.sets} × {e.target.reps_min}–{e.target.reps_max} répétitions ·{' '}
+                      {e.primary_muscle} ·{' '}
+                      {e.load_kind === 'assisted'
+                        ? 'Assistance en kg'
+                        : e.load_kind === 'bodyweight'
+                          ? 'Poids du corps'
+                          : 'Charge externe en kg'}
+                      {e.target.rest_seconds !== null
+                        ? ` · repos cible ${Math.floor(e.target.rest_seconds / 60)}:${String(e.target.rest_seconds % 60).padStart(2, '0')}`
+                        : ''}
+                    </>
+                  )}
                 </p>
                 {e.notes && <p>{e.notes}</p>}
               </div>
@@ -491,168 +627,178 @@ function WorkoutEditor({ initial }: { initial: Workout }) {
               </div>
             )}
             <fieldset disabled={!edit || busy} style={{ border: 0, padding: 0, minWidth: 0 }}>
-              <div className="set-scroll">
-                <table className="sets-table">
-                  <thead>
-                    <tr>
-                      <th>SÉRIE</th>
-                      <th>PRÉCÉDENT</th>
-                      <th>TYPE</th>
-                      <th>KG</th>
-                      <th>RÉP.</th>
-                      <th>RPE</th>
-                      <th>RIR</th>
-                      <th>{e.group_id ? 'REPOS / SÉRIE*' : 'REPOS RÉALISÉ'}</th>
-                      <th>FAIT</th>
-                      {edit && <th />}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {e.sets.map((s, si) => {
-                      const prev = last?.sets.filter((p) => p.type === s.type && p.completed)[
-                        e.sets.slice(0, si).filter((x) => x.type === s.type).length
-                      ];
-                      return (
-                        <tr key={s.id} className={s.completed ? 'completed' : ''}>
-                          <td>
-                            <strong>{si + 1}</strong>
-                          </td>
-                          <td className="previous">
-                            {prev
-                              ? `${prev.weight ?? 'PDC'}${prev.weight !== null ? ' kg' : ''} × ${prev.reps}`
-                              : '—'}
-                            {prev?.rest_seconds !== null && prev?.rest_seconds !== undefined && (
-                              <small>
-                                repos {Math.floor(prev.rest_seconds / 60)}:
-                                {String(prev.rest_seconds % 60).padStart(2, '0')}
-                              </small>
-                            )}
-                          </td>
-                          <td>
-                            <select
-                              aria-label={`Type série ${si + 1}`}
-                              value={s.type}
-                              onChange={(x) =>
-                                set({ ...s, type: x.target.value as WorkoutSet['type'] })
-                              }
-                            >
-                              <option value="normal">Travail</option>
-                              <option value="warmup">Échauff.</option>
-                              <option value="drop">Dégressive</option>
-                            </select>
-                          </td>
-                          <td className="weight">
-                            <NumberField
-                              label={`Charge série ${si + 1}`}
-                              value={s.weight}
-                              onChange={(n) => set({ ...s, weight: n })}
-                              nullable
-                            />
-                          </td>
-                          <td className="reps">
-                            <NumberField
-                              label={`Répétitions série ${si + 1}`}
-                              value={s.reps}
-                              max={500}
-                              step={1}
-                              onChange={(n) => set({ ...s, reps: n ?? 0 })}
-                            />
-                          </td>
-                          <td className="effort">
-                            <NumberField
-                              label={`RPE série ${si + 1}`}
-                              value={s.rpe}
-                              min={1}
-                              max={10}
-                              onChange={(n) => set({ ...s, rpe: n })}
-                              nullable
-                            />
-                          </td>
-                          <td className="effort">
-                            <NumberField
-                              label={`RIR série ${si + 1}`}
-                              value={s.rir}
-                              min={0}
-                              max={10}
-                              onChange={(n) => set({ ...s, rir: n })}
-                              nullable
-                            />
-                          </td>
-                          <td>
-                            <RestInput
-                              value={s.rest_seconds}
-                              label={`Repos série ${si + 1}`}
-                              onChange={(n) => set({ ...s, rest_seconds: n })}
-                            />
-                          </td>
-                          <td>
-                            <button
-                              className={`set-done ${s.completed ? 'done' : ''}`}
-                              aria-label={`Série ${si + 1} ${s.completed ? 'effectuée' : 'à effectuer'}`}
-                              aria-pressed={s.completed}
-                              onClick={() => set({ ...s, completed: !s.completed })}
-                            >
-                              <Check size={18} />
-                            </button>
-                          </td>
-                          {edit && (
-                            <td>
-                              <Button
-                                variant="ghost"
-                                aria-label={`Supprimer la série ${si + 1}`}
-                                onClick={() =>
-                                  updateExercise({
-                                    ...e,
-                                    sets: e.sets
-                                      .filter((x) => x.id !== s.id)
-                                      .map((x, i) => ({ ...x, position: i })),
-                                  })
-                                }
-                              >
-                                <Trash2 size={13} />
-                              </Button>
-                            </td>
-                          )}
+              {e.load_kind === 'cardio' ? (
+                <CardioIntervals exercise={e} onChange={updateExercise} edit={edit} />
+              ) : (
+                <>
+                  <div className="set-scroll">
+                    <table className="sets-table">
+                      <thead>
+                        <tr>
+                          <th>SÉRIE</th>
+                          <th>PRÉCÉDENT</th>
+                          <th>TYPE</th>
+                          <th>KG</th>
+                          <th>RÉP.</th>
+                          <th>RPE</th>
+                          <th>RIR</th>
+                          <th>{e.group_id ? 'REPOS / SÉRIE*' : 'REPOS RÉALISÉ'}</th>
+                          <th>FAIT</th>
+                          {edit && <th />}
                         </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-              <div className="set-footer">
-                {edit && (
-                  <Button
-                    variant="ghost"
-                    onClick={() =>
-                      updateExercise({ ...e, sets: [...e.sets, newSet(e.sets.length, e.target)] })
-                    }
-                  >
-                    <Plus size={14} />
-                    Ajouter une série
-                  </Button>
-                )}
-                <label className="check-label">
-                  <input
-                    type="checkbox"
-                    checked={e.technique_ok}
-                    onChange={(x) => updateExercise({ ...e, technique_ok: x.target.checked })}
-                  />
-                  Technique et effort acceptables sur cet exercice
-                </label>
-              </div>
-              <details className="notes-details">
-                <summary>Notes par série</summary>
-                {e.sets.map((s, i) => (
-                  <Field key={s.id} label={`Série ${i + 1}`}>
-                    <input
-                      value={s.notes}
-                      maxLength={1000}
-                      onChange={(x) => set({ ...s, notes: x.target.value })}
-                      placeholder="Votre ressenti, un réglage…"
-                    />
-                  </Field>
-                ))}
-              </details>
+                      </thead>
+                      <tbody>
+                        {e.sets.map((s, si) => {
+                          const prev = last?.sets.filter((p) => p.type === s.type && p.completed)[
+                            e.sets.slice(0, si).filter((x) => x.type === s.type).length
+                          ];
+                          return (
+                            <tr key={s.id} className={s.completed ? 'completed' : ''}>
+                              <td>
+                                <strong>{si + 1}</strong>
+                              </td>
+                              <td className="previous">
+                                {prev
+                                  ? `${prev.weight ?? 'PDC'}${prev.weight !== null ? ' kg' : ''} × ${prev.reps}`
+                                  : '—'}
+                                {prev?.rest_seconds !== null &&
+                                  prev?.rest_seconds !== undefined && (
+                                    <small>
+                                      repos {Math.floor(prev.rest_seconds / 60)}:
+                                      {String(prev.rest_seconds % 60).padStart(2, '0')}
+                                    </small>
+                                  )}
+                              </td>
+                              <td>
+                                <select
+                                  aria-label={`Type série ${si + 1}`}
+                                  value={s.type}
+                                  onChange={(x) =>
+                                    set({ ...s, type: x.target.value as WorkoutSet['type'] })
+                                  }
+                                >
+                                  <option value="normal">Travail</option>
+                                  <option value="warmup">Échauff.</option>
+                                  <option value="drop">Dégressive</option>
+                                </select>
+                              </td>
+                              <td className="weight">
+                                <NumberField
+                                  label={`Charge série ${si + 1}`}
+                                  value={s.weight}
+                                  onChange={(n) => set({ ...s, weight: n })}
+                                  nullable
+                                />
+                              </td>
+                              <td className="reps">
+                                <NumberField
+                                  label={`Répétitions série ${si + 1}`}
+                                  value={s.reps}
+                                  max={500}
+                                  step={1}
+                                  onChange={(n) => set({ ...s, reps: n ?? 0 })}
+                                />
+                              </td>
+                              <td className="effort">
+                                <NumberField
+                                  label={`RPE série ${si + 1}`}
+                                  value={s.rpe}
+                                  min={1}
+                                  max={10}
+                                  onChange={(n) => set({ ...s, rpe: n })}
+                                  nullable
+                                />
+                              </td>
+                              <td className="effort">
+                                <NumberField
+                                  label={`RIR série ${si + 1}`}
+                                  value={s.rir}
+                                  min={0}
+                                  max={10}
+                                  onChange={(n) => set({ ...s, rir: n })}
+                                  nullable
+                                />
+                              </td>
+                              <td>
+                                <RestInput
+                                  value={s.rest_seconds}
+                                  label={`Repos série ${si + 1}`}
+                                  onChange={(n) => set({ ...s, rest_seconds: n })}
+                                />
+                              </td>
+                              <td>
+                                <button
+                                  className={`set-done ${s.completed ? 'done' : ''}`}
+                                  aria-label={`Série ${si + 1} ${s.completed ? 'effectuée' : 'à effectuer'}`}
+                                  aria-pressed={s.completed}
+                                  onClick={() => set({ ...s, completed: !s.completed })}
+                                >
+                                  <Check size={18} />
+                                </button>
+                              </td>
+                              {edit && (
+                                <td>
+                                  <Button
+                                    variant="ghost"
+                                    aria-label={`Supprimer la série ${si + 1}`}
+                                    onClick={() =>
+                                      updateExercise({
+                                        ...e,
+                                        sets: e.sets
+                                          .filter((x) => x.id !== s.id)
+                                          .map((x, i) => ({ ...x, position: i })),
+                                      })
+                                    }
+                                  >
+                                    <Trash2 size={13} />
+                                  </Button>
+                                </td>
+                              )}
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                  <div className="set-footer">
+                    {edit && (
+                      <Button
+                        variant="ghost"
+                        onClick={() =>
+                          updateExercise({
+                            ...e,
+                            sets: [...e.sets, newSet(e.sets.length, e.target, e.load_kind)],
+                          })
+                        }
+                      >
+                        <Plus size={14} />
+                        Ajouter une série
+                      </Button>
+                    )}
+                    <label className="check-label">
+                      <input
+                        type="checkbox"
+                        checked={e.technique_ok}
+                        onChange={(x) => updateExercise({ ...e, technique_ok: x.target.checked })}
+                      />
+                      Technique et effort acceptables sur cet exercice
+                    </label>
+                  </div>
+                  <details className="notes-details">
+                    <summary>Notes par série</summary>
+                    {e.sets.map((s, i) => (
+                      <Field key={s.id} label={`Série ${i + 1}`}>
+                        <input
+                          value={s.notes}
+                          maxLength={1000}
+                          onChange={(x) => set({ ...s, notes: x.target.value })}
+                          placeholder="Votre ressenti, un réglage…"
+                        />
+                      </Field>
+                    ))}
+                  </details>
+                </>
+              )}
             </fieldset>
           </section>
         );
@@ -735,7 +881,7 @@ function WorkoutEditor({ initial }: { initial: Workout }) {
                   ...e,
                   technique_ok: false,
                   sets: Array.from({ length: e.target.sets }, (_, i) => ({
-                    ...newSet(i, e.target),
+                    ...newSet(i, e.target, e.load_kind),
                     weight:
                       last?.sets.filter((s) => s.type === 'normal' && s.completed)[i]?.weight ??
                       null,
