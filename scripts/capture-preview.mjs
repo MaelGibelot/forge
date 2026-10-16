@@ -9,7 +9,7 @@ try {
   ]) {
     const context = await browser.newContext(options);
     const page = await context.newPage();
-    await page.goto('http://127.0.0.1:3000/connexion');
+    await page.goto(`${process.env.E2E_BASE_URL ?? 'http://127.0.0.1:3000'}/connexion`);
     await page.getByRole('heading', { name: 'Prêt pour la suite ?' }).waitFor();
     await page.waitForLoadState('networkidle');
     await page.screenshot({

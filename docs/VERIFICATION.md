@@ -19,17 +19,20 @@ L’application enregistre une séance depuis l’interface vers une route HTTP 
 | Inspection visuelle | Connexion ordinateur et téléphone inspectée | Captures dans `docs/previews/` ; les écrans privés n’ont pas été inspectés avec une vraie session |
 | Build Next.js production | Réussi avec Webpack | Compilation, types et génération des routes ; Turbopack a échoué sur un processus CSS Windows |
 | Audit npm | Aucune vulnérabilité signalée | Dépendances de production et de développement, audit exécuté en fin de vérification |
-| Déploiement Vercel | Non effectué | Projet, secrets et configuration externe non fournis |
+| Déploiement Vercel | **READY** | Production `https://forge-maelgibelot.vercel.app`, source `MaelGibelot/forge`, fonctions Paris |
+| Playwright production distante | **4 tests réussis** | Ordinateur et mobile, rendu sans erreur console/JavaScript, aucune inscription, pages et API privées protégées |
+| Backend production distante | Réussi pour les contrôles sans session | API privée 401, connexion inconnue 401 via fonctions serveur Supabase, origine étrangère 403 |
+| Supabase hébergé | Migrations et seed appliqués | 62 exercices, 10 groupes musculaires, RLS sur les 16 tables publiques, diagnostics sans avertissement de sécurité/performance après indexation |
 
 La stack Supabase complète n’a pas été lancée localement : Docker n’était pas disponible. PGlite exécute la migration et les politiques dans un moteur PostgreSQL embarqué ; les tables et fonctions minimales du schéma Auth sont préparées par les tests. Ce contrôle ne prouve pas le fonctionnement de Supabase Auth, de son service HTTP ni de PostgREST.
 
 ## Parcours encore à vérifier sur le service réel
 
-1. Appliquer la migration et le seed au bon projet ; vérifier les droits Data API et lancer les diagnostics de sécurité Supabase.
-2. Désactiver les inscriptions et les flux email dans la configuration hébergée.
+1. Réalisé : migrations et seed appliqués au projet `egzytutkpnkdyafgdsrv`, diagnostics Supabase exécutés. Les deux tables privées sans politique cliente et les index encore inutilisés sont des informations attendues.
+2. Réalisé : inscriptions publiques et anonymes désactivées, fournisseur email/mot de passe conservé, minimum de 12 caractères. Les comptes admin seront directement confirmés sans envoi d’email ; aucun compte n’a encore été créé.
 3. Créer deux comptes avec le script admin ; vérifier la connexion par identifiant et la persistance après reconnexion.
 4. Activer les tests Playwright privés sur un projet de test. Ils couvrent programme, exercices, superset, saisie RPE/RIR/repos, brouillon, rechargement, finalisation, historique, graphique, records, correction d’une ancienne séance, thème et isolation entre comptes.
 5. Vérifier changement de mot de passe, réinitialisation propriétaire, suppression réelle du compte et révocation de sessions.
-6. Déployer avec les variables de l’environnement Vercel puis contrôler l’origine exacte, HTTPS, les cookies et les tentatives de connexion.
+6. Réalisé pour HTTPS, l’origine exacte, le déploiement et le rejet d’identifiants inconnus ; les cookies d’une vraie session et la limitation après tentatives répétées restent à vérifier avec les comptes de test.
 
 Les tests ignorés ne sont pas comptés comme réussis. Aucune connexion, donnée distante ou publication n’est présentée comme validée sans preuve.

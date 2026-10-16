@@ -30,10 +30,10 @@ npm start
 ## Configurer Supabase
 
 1. Créer un **nouveau projet Supabase** et conserver son mot de passe de base hors du dépôt. Les ressources créées sur le compte sont décrites dans `docs/PROVISIONING.md`.
-2. Dans **Authentication → Sign In / Providers**, conserver le fournisseur email/mot de passe, désactiver **Allow new users to sign up**, les connexions anonymes et les fournisseurs non utilisés. Désactiver **Confirm email**. Les utilisateurs sont provisionnés exclusivement par l’API admin avec `email_confirm: true`, sans envoi de confirmation.
+2. Dans **Authentication → Sign In / Providers**, conserver le fournisseur email/mot de passe, désactiver **Allow new users to sign up**, les connexions anonymes et les fournisseurs non utilisés. **Confirm email** peut rester activé : les utilisateurs sont provisionnés exclusivement par l’API admin avec `email_confirm: true`, sans envoi de confirmation. C’est la configuration du projet hébergé FORGE.
 3. Définir une longueur minimale de mot de passe de 12 caractères. Conserver les protections Supabase contre les tentatives répétées. Le fichier `supabase/config.toml` applique ces réglages pour une stack locale. Il **ne configure pas automatiquement votre projet hébergé**.
 4. Configurer l’URL du site, d’abord `http://127.0.0.1:3000`, puis votre URL Vercel. Conserver des JWT courts (900 secondes dans la configuration locale). Désactiver les notifications email de changement de mot de passe si elles sont activées sur le projet : l’application n’utilise aucun flux email.
-5. Appliquer `supabase/migrations/20261016140915_initial_schema.sql` dans le SQL Editor du projet neuf, puis `supabase/seed.sql`. La migration s’applique une fois ; le seed peut être réexécuté sans doublons. Pour une gestion versionnée via la CLI, consulter `npx supabase link --help` puis `npx supabase db push --help` avant de lier et pousser vers le bon projet. Ne pas mélanger une application manuelle et la CLI sans réconcilier l’historique des migrations.
+5. Appliquer les fichiers de `supabase/migrations/` dans l’ordre de leur nom sur le projet neuf, puis `supabase/seed.sql`. Chaque migration s’applique une fois ; le seed peut être réexécuté sans doublons. Pour une gestion versionnée via la CLI, consulter `npx supabase link --help` puis `npx supabase db push --help` avant de lier et pousser vers le bon projet. Ne pas mélanger une application manuelle et la CLI sans réconcilier l’historique des migrations.
 6. Vérifier que le schéma `public` est exposé à la Data API. Les droits `GRANT` et toutes les politiques RLS sont dans la migration. Le schéma `private` ne doit jamais être ajouté aux schémas exposés.
 7. Remplir `.env.local` :
 
@@ -172,7 +172,7 @@ Les ressources distantes et l’état du déploiement sont consignés dans `docs
 
 ## Limites restantes
 
-- Le service Auth réel, les emails désactivés, la configuration Data API, la révocation de sessions, les diagnostics de sécurité Supabase et le parcours privé complet restent à vérifier sur votre projet configuré.
+- Le parcours privé complet avec une vraie session et la révocation de sessions restent à vérifier après la création des comptes. La configuration du projet hébergé et les contrôles effectués sont consignés dans `docs/PROVISIONING.md` et `docs/VERIFICATION.md`.
 - Les historiques sont paginés. Les statistiques et records chargent les séances nécessaires en lots, puis calculent côté navigateur. Pour des volumes très importants, déplacer les agrégats en SQL et ne retourner que les points des graphiques ; aucune limite arbitraire n’est appliquée aux records, mais le coût croît avec l’historique.
 - Le catalogue utilise des schémas anatomiques originaux comme illustrations de remplacement ; pas de photos/vidéos d’exécution ni de représentation détaillée de chaque mouvement. Pas de média tiers soumis à licence.
 - Pas de calendrier mensuel, de réseau social, de notifications, de chronomètre ni de synchronisation entre appareils sans connexion. Les fonctionnalités optionnelles de calendrier et médias pourront être ajoutées.
