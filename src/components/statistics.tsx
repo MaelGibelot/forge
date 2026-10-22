@@ -443,8 +443,7 @@ export function Records() {
                 <span className="badge">RECORD RÉALISÉ</span>
               </div>
               <div className="record-value">
-                {r.record_sets} <small>{r.record_sets === 1 ? 'série à' : 'séries à'}</small>{' '}
-                {number(r.max_weight, 2)} <small>kg</small>
+                {number(r.max_weight, 2)} <small>kg ×</small> {r.record_reps} <small>rép.</small>
               </div>
               <h3>
                 <Link href={`/exercices/${r.exercise_id}`}>{r.name} ↗</Link>
@@ -455,12 +454,9 @@ export function Records() {
               </small>
               <hr />
               <div className="stack gap-sm">
-                <div>
-                  <strong>{r.record_reps.join(' / ')} répétitions</strong>
-                  <p className="muted" style={{ fontSize: 12 }}>
-                    Séries validées à cette charge dans la séance du record.
-                  </p>
-                </div>
+                <p className="muted" style={{ fontSize: 12 }}>
+                  Meilleure série validée à la charge maximale.
+                </p>
                 <details className="notes-details">
                   <summary>Records par nombre de répétitions</summary>
                   {Object.entries(r.by_reps).map(([reps, weight]) => (

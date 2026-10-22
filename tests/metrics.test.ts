@@ -39,7 +39,7 @@ function session(e = exercise(), index = 1): Workout {
   };
 }
 describe('mesures', () => {
-  it('associe le record à ses séries réelles dans une seule séance, même en plusieurs blocs', () => {
+  it('retient une seule série maximale, puis les meilleures répétitions à charge égale', () => {
     const one = session(exercise([10], 80), 1);
     const many = session(exercise([9, 8], 80), 2);
     many.exercises.push({ ...exercise([7], 80), id: crypto.randomUUID() });
@@ -59,17 +59,16 @@ describe('mesures', () => {
     const record = records([one, many])[0];
     expect(record).toMatchObject({
       max_weight: 80,
-      record_sets: 3,
-      record_reps: [9, 8, 7],
-      workout_id: many.id,
-      date: many.started_at,
+      record_reps: 10,
+      workout_id: one.id,
+      date: one.started_at,
     });
-    expect(records([one])[0]).toMatchObject({ record_sets: 1, record_reps: [10] });
+    expect(records([many])[0]).toMatchObject({ record_reps: 9, workout_id: many.id });
+    expect(records([one])[0]).toMatchObject({ record_reps: 10 });
     const higher = session(exercise([3], 85), 3);
     expect(records([many, higher])[0]).toMatchObject({
       max_weight: 85,
-      record_sets: 1,
-      record_reps: [3],
+      record_reps: 3,
       workout_id: higher.id,
     });
   });
