@@ -2113,3 +2113,293 @@ hr {
     color: var(--accent);
   }
 }
+.mobile-only {
+  display: none;
+}
+@media (max-width: 640px) {
+  .app-content {
+    padding-bottom: calc(86px + env(safe-area-inset-bottom));
+  }
+  .app-content main {
+    padding: 20px 14px 28px;
+  }
+  input:not([type='checkbox']):not([type='radio']),
+  select,
+  textarea {
+    font-size: 16px;
+    min-height: 46px;
+  }
+  .btn {
+    min-height: 46px;
+  }
+  button,
+  a {
+    touch-action: manipulation;
+  }
+  .mobile-only {
+    display: inline;
+  }
+  .mobile-nav {
+    padding-bottom: max(10px, env(safe-area-inset-bottom));
+  }
+  .mobile-nav a,
+  .mobile-nav > button {
+    flex: 1;
+    min-width: 0;
+    min-height: 48px;
+    font-size: 10px;
+  }
+  .more-nav a {
+    min-height: 48px;
+  }
+  .search-bar {
+    flex-wrap: wrap;
+  }
+  .search-bar input {
+    width: 100%;
+    min-width: 0;
+  }
+  .period-tabs {
+    max-width: 100%;
+    flex-wrap: wrap;
+  }
+  .period-tabs button {
+    min-height: 44px;
+  }
+  .modal-backdrop {
+    align-items: flex-end;
+    padding: 0;
+  }
+  .modal {
+    width: 100%;
+    max-width: 100%;
+    border-radius: 20px 20px 0 0;
+    padding: 20px 18px calc(20px + env(safe-area-inset-bottom));
+    max-height: 92dvh;
+  }
+  .workout-toolbar {
+    position: static;
+  }
+  .workout-card {
+    padding: 14px;
+  }
+  .workout-header .tools .btn {
+    min-width: 44px;
+    min-height: 44px;
+  }
+  .set-scroll,
+  .table-scroll {
+    overflow: visible;
+    margin: 0;
+  }
+  .sets-table,
+  .history-table {
+    display: block;
+    width: 100%;
+    min-width: 0;
+  }
+  .sets-table thead,
+  .history-table thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+  }
+  .sets-table tbody,
+  .history-table tbody {
+    display: grid;
+    gap: 14px;
+  }
+  .sets-table tr {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-areas: 'index done' 'previous previous' 'weight reps' 'type rest' 'remove remove';
+    gap: 12px;
+    padding: 14px;
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    background: var(--panel2);
+  }
+  .sets-table tr.completed {
+    border-color: var(--green);
+    background: var(--panel2);
+  }
+  .sets-table td,
+  .sets-table td:first-child,
+  .sets-table td.weight,
+  .sets-table td.reps {
+    display: block;
+    width: auto;
+    padding: 0;
+    border: 0;
+    min-width: 0;
+  }
+  .sets-table td[data-label]::before,
+  .history-table td[data-label]::before {
+    content: attr(data-label);
+    display: block;
+    color: var(--muted);
+    font-size: 12px;
+    margin-bottom: 6px;
+  }
+  .sets-table .set-index {
+    grid-area: index;
+    align-self: center;
+    font-size: 16px;
+  }
+  .sets-table .set-index::before {
+    content: 'Série ';
+  }
+  .sets-table .previous {
+    grid-area: previous;
+    white-space: normal;
+    font-size: 13px;
+    padding: 10px;
+    border-radius: 8px;
+    background: var(--panel);
+  }
+  .sets-table .previous small {
+    font-size: 12px;
+  }
+  .sets-table .weight {
+    grid-area: weight;
+  }
+  .sets-table .reps {
+    grid-area: reps;
+  }
+  .sets-table .set-type {
+    grid-area: type;
+  }
+  .sets-table .set-rest {
+    grid-area: rest;
+  }
+  .sets-table .set-check {
+    grid-area: done;
+    justify-self: end;
+  }
+  .sets-table .set-delete {
+    grid-area: remove;
+    justify-self: end;
+  }
+  .sets-table select,
+  .sets-table input {
+    width: 100%;
+    font-size: 16px;
+    min-width: 0;
+    min-height: 46px;
+    padding: 10px 8px;
+    text-align: left;
+  }
+  .sets-table .rest-input {
+    width: 100%;
+    gap: 4px;
+  }
+  .sets-table .rest-input input {
+    width: 0;
+    flex: 1;
+  }
+  .set-done {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+    justify-content: center;
+    width: auto;
+    min-width: 94px;
+    min-height: 46px;
+    padding: 8px 12px;
+  }
+  .sets-table .set-delete .btn {
+    font-size: 12px;
+  }
+  .set-footer {
+    flex-wrap: wrap;
+    gap: 14px;
+  }
+  .check-label {
+    min-height: 44px;
+  }
+  .history-table tr {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 14px;
+    padding: 16px;
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    background: var(--panel2);
+  }
+  .history-table td {
+    display: block;
+    padding: 0;
+    border: 0;
+    font-size: 14px;
+    overflow-wrap: anywhere;
+  }
+  .history-table .session-name,
+  .history-table .session-actions {
+    grid-column: 1/-1;
+  }
+  .history-table .session-name a {
+    display: inline-block;
+    font-size: 17px;
+    padding: 6px 0;
+  }
+  .history-table .session-actions .btn {
+    width: 100%;
+    justify-content: center;
+  }
+  .record-card .record-value {
+    font-size: 30px;
+    line-height: 1.3;
+    overflow-wrap: anywhere;
+  }
+  .record-card h3 {
+    font-size: 18px;
+  }
+  .notes-details > summary {
+    min-height: 44px;
+    padding: 12px 0;
+    font-size: 14px;
+  }
+  .stat-controls {
+    flex-wrap: wrap;
+  }
+  .stat-controls select {
+    width: 100%;
+    min-width: 0;
+  }
+}
+.mobile-workout-finish {
+  display: none;
+}
+@media (max-width: 640px) {
+  .mobile-workout-finish {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin: 22px 0 8px;
+  }
+  .mobile-workout-finish .btn {
+    flex: 1;
+    min-width: 130px;
+  }
+}
+.record-card .record-value small {
+  font-size: 14px;
+  letter-spacing: 0;
+}
+@media (max-width: 640px) {
+  .sets-table .previous {
+    width: auto;
+  }
+  .page-title .actions > .btn-danger {
+    flex: 0 1 auto;
+    background: transparent;
+    border-color: transparent;
+    padding: 8px 12px;
+    font-size: 12px;
+  }
+}

@@ -440,9 +440,10 @@ export function Records() {
                 <span className="trophy">
                   <Trophy size={20} />
                 </span>
-                <span className="badge">CHARGE MAX.</span>
+                <span className="badge">RECORD RÉALISÉ</span>
               </div>
               <div className="record-value">
+                {r.record_sets} <small>{r.record_sets === 1 ? 'série à' : 'séries à'}</small>{' '}
                 {number(r.max_weight, 2)} <small>kg</small>
               </div>
               <h3>
@@ -454,13 +455,11 @@ export function Records() {
               </small>
               <hr />
               <div className="stack gap-sm">
-                <div className="flex between">
-                  <small>1RM estimé</small>
-                  <strong>{r.e1rm === null ? '—' : `${number(r.e1rm, 1)} kg`}</strong>
-                </div>
-                <div className="flex between">
-                  <small>Volume maximal / séance</small>
-                  <strong>{number(r.volume)} kg</strong>
+                <div>
+                  <strong>{r.record_reps.join(' / ')} répétitions</strong>
+                  <p className="muted" style={{ fontSize: 12 }}>
+                    Séries validées à cette charge dans la séance du record.
+                  </p>
                 </div>
                 <details className="notes-details">
                   <summary>Records par nombre de répétitions</summary>
@@ -469,6 +468,19 @@ export function Records() {
                       {reps} répétitions : {number(weight, 2)} kg
                     </p>
                   ))}
+                </details>
+                <details className="notes-details">
+                  <summary>Autres indicateurs</summary>
+                  <div className="stack gap-sm" style={{ marginTop: 12 }}>
+                    <div className="flex between">
+                      <small>1RM estimé</small>
+                      <strong>{r.e1rm === null ? '—' : `${number(r.e1rm, 1)} kg`}</strong>
+                    </div>
+                    <div className="flex between">
+                      <small>Volume maximal / séance</small>
+                      <strong>{number(r.volume)} kg</strong>
+                    </div>
+                  </div>
                 </details>
                 <Link className="text-link" href={`/seances/${r.workout_id}`}>
                   Voir la séance du record ↗

@@ -114,6 +114,8 @@ export function records(workouts: Workout[]) {
       exercise_id: string;
       name: string;
       max_weight: number;
+      record_sets: number;
+      record_reps: number[];
       e1rm: number | null;
       volume: number;
       by_reps: Record<number, number>;
@@ -138,18 +140,35 @@ export function records(workouts: Workout[]) {
         exercise_id: e.exercise_id,
         name: e.name,
         max_weight: 0,
+        record_sets: 0,
+        record_reps: [],
         e1rm: null,
         volume: 0,
         by_reps: {},
         workout_id: w.id,
         date: w.started_at,
       };
+      const sessionSets = w.exercises
+        .filter((x) => x.exercise_id === e.exercise_id && x.load_kind === 'external')
+        .flatMap((x) => x.sets)
+        .filter((s) => eligible(s) && s.weight !== null && s.weight > 0 && s.weight <= 2000);
+      const maxWeight = Math.max(...sessionSets.map((s) => s.weight!));
+      const atMax = sessionSets.filter((s) => s.weight === maxWeight);
+      if (
+        maxWeight > r.max_weight ||
+        (maxWeight === r.max_weight &&
+          (atMax.length > r.record_sets ||
+            (atMax.length === r.record_sets &&
+              atMax.reduce((n, s) => n + s.reps, 0) >
+                r.record_reps.reduce((n, reps) => n + reps, 0))))
+      ) {
+        r.max_weight = maxWeight;
+        r.record_sets = atMax.length;
+        r.record_reps = atMax.map((s) => s.reps);
+        r.workout_id = w.id;
+        r.date = w.started_at;
+      }
       for (const s of sets) {
-        if (s.weight! > r.max_weight) {
-          r.max_weight = s.weight!;
-          r.workout_id = w.id;
-          r.date = w.started_at;
-        }
         const rm = estimated1RM(s, e);
         if (rm !== null && (r.e1rm === null || rm > r.e1rm)) r.e1rm = rm;
         r.by_reps[s.reps] = Math.max(r.by_reps[s.reps] ?? 0, s.weight!);

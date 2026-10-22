@@ -1,7 +1,7 @@
 'use client';
 import { useState } from 'react';
 import Link from 'next/link';
-import { Plus, History as HistoryIcon, Trash2, ArrowUpRight } from 'lucide-react';
+import { Plus, ClipboardList, Trash2, ArrowUpRight } from 'lucide-react';
 import { useData } from './store';
 import { useStartWorkout } from './dashboard';
 import { Button, PageTitle, Empty, ErrorBox, api } from './ui';
@@ -51,7 +51,7 @@ export function History() {
       <section className="card">
         {!filtered.length ? (
           <Empty
-            icon={<HistoryIcon />}
+            icon={<ClipboardList />}
             title="Votre histoire s’écrit à l’entraînement"
             description="Les séances correspondant à ce filtre apparaîtront ici. Chargez davantage de séances si nécessaire."
           />
@@ -71,7 +71,7 @@ export function History() {
               <tbody>
                 {filtered.map((w) => (
                   <tr key={w.id}>
-                    <td>
+                    <td className="session-name">
                       <Link href={`/seances/${w.id}`}>
                         <strong>
                           {w.name} <ArrowUpRight size={13} style={{ display: 'inline' }} />
@@ -89,12 +89,12 @@ export function History() {
                             : 'En cours'}
                       </span>
                     </td>
-                    <td>
+                    <td data-label="Date">
                       {shortDate(w.started_at)}
                       <br />
                       <small>{new Date(w.started_at).getFullYear()}</small>
                     </td>
-                    <td>
+                    <td data-label="Entraînement">
                       {w.exercises.length} exercices
                       <br />
                       <small>
@@ -102,7 +102,7 @@ export function History() {
                         séries de travail
                       </small>
                     </td>
-                    <td>
+                    <td data-label="Volume externe">
                       {number(workoutVolume(w))} kg
                       {cardioTotals(w).seconds > 0 && (
                         <>
@@ -114,12 +114,12 @@ export function History() {
                         </>
                       )}
                     </td>
-                    <td>
+                    <td data-label="Durée">
                       {w.finished_at
                         ? `${Math.round((Date.parse(w.finished_at) - Date.parse(w.started_at)) / 60000)} min`
                         : '—'}
                     </td>
-                    <td>
+                    <td className="session-actions">
                       <Button
                         variant="ghost"
                         disabled={busy}
@@ -156,6 +156,7 @@ export function History() {
                         }}
                       >
                         <Trash2 size={15} />
+                        <span className="mobile-only">Supprimer la séance</span>
                       </Button>
                     </td>
                   </tr>

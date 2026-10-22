@@ -39,6 +39,40 @@ function session(e = exercise(), index = 1): Workout {
   };
 }
 describe('mesures', () => {
+  it('associe le record à ses séries réelles dans une seule séance, même en plusieurs blocs', () => {
+    const one = session(exercise([10], 80), 1);
+    const many = session(exercise([9, 8], 80), 2);
+    many.exercises.push({ ...exercise([7], 80), id: crypto.randomUUID() });
+    many.exercises[0].sets.push({
+      ...newSet(5, many.exercises[0].target),
+      completed: true,
+      weight: 100,
+      reps: 10,
+      type: 'warmup',
+    });
+    many.exercises[0].sets.push({
+      ...newSet(6, many.exercises[0].target),
+      completed: false,
+      weight: 110,
+      reps: 10,
+    });
+    const record = records([one, many])[0];
+    expect(record).toMatchObject({
+      max_weight: 80,
+      record_sets: 3,
+      record_reps: [9, 8, 7],
+      workout_id: many.id,
+      date: many.started_at,
+    });
+    expect(records([one])[0]).toMatchObject({ record_sets: 1, record_reps: [10] });
+    const higher = session(exercise([3], 85), 3);
+    expect(records([many, higher])[0]).toMatchObject({
+      max_weight: 85,
+      record_sets: 1,
+      record_reps: [3],
+      workout_id: higher.id,
+    });
+  });
   it('compte une pratique par séance et exclut brouillons, séries non validées et échauffements seuls', () => {
     const e = exercise();
     const a = session(e);

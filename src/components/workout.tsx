@@ -663,10 +663,10 @@ function WorkoutEditor({ initial }: { initial: Workout }) {
                           ];
                           return (
                             <tr key={s.id} className={s.completed ? 'completed' : ''}>
-                              <td>
+                              <td className="set-index">
                                 <strong>{si + 1}</strong>
                               </td>
-                              <td className="previous">
+                              <td className="previous" data-label="Précédent">
                                 {prev
                                   ? `${prev.weight ?? 'PDC'}${prev.weight !== null ? ' kg' : ''} × ${prev.reps}`
                                   : '—'}
@@ -678,7 +678,7 @@ function WorkoutEditor({ initial }: { initial: Workout }) {
                                     </small>
                                   )}
                               </td>
-                              <td>
+                              <td className="set-type" data-label="Type de série">
                                 <select
                                   aria-label={`Type série ${si + 1}`}
                                   value={s.type}
@@ -691,7 +691,12 @@ function WorkoutEditor({ initial }: { initial: Workout }) {
                                   <option value="drop">Dégressive</option>
                                 </select>
                               </td>
-                              <td className="weight">
+                              <td
+                                className="weight"
+                                data-label={
+                                  e.load_kind === 'assisted' ? 'Assistance (kg)' : 'Charge (kg)'
+                                }
+                              >
                                 <NumberField
                                   label={`${e.load_kind === 'assisted' ? 'Assistance' : 'Charge'} série ${si + 1}`}
                                   value={s.weight}
@@ -699,21 +704,21 @@ function WorkoutEditor({ initial }: { initial: Workout }) {
                                   nullable
                                 />
                               </td>
-                              <td className="reps">
+                              <td className="reps" data-label="Répétitions">
                                 <RepetitionSelect
                                   label={`Répétitions série ${si + 1}`}
                                   value={s.reps}
                                   onChange={(reps) => set({ ...s, reps })}
                                 />
                               </td>
-                              <td>
+                              <td className="set-rest" data-label="Repos (min : sec)">
                                 <RestInput
                                   value={s.rest_seconds}
                                   label={`Repos série ${si + 1}`}
                                   onChange={(n) => set({ ...s, rest_seconds: n })}
                                 />
                               </td>
-                              <td>
+                              <td className="set-check">
                                 <button
                                   className={`set-done ${s.completed ? 'done' : ''}`}
                                   aria-label={`Série ${si + 1} ${s.completed ? 'effectuée' : 'à effectuer'}`}
@@ -722,10 +727,13 @@ function WorkoutEditor({ initial }: { initial: Workout }) {
                                   onClick={() => set({ ...s, completed: !s.completed })}
                                 >
                                   <Check size={18} />
+                                  <span className="mobile-only">
+                                    {s.completed ? 'Fait' : 'Valider'}
+                                  </span>
                                 </button>
                               </td>
                               {edit && (
-                                <td>
+                                <td className="set-delete">
                                   <Button
                                     variant="ghost"
                                     aria-label={`Supprimer la série ${si + 1}`}
@@ -739,6 +747,7 @@ function WorkoutEditor({ initial }: { initial: Workout }) {
                                     }
                                   >
                                     <Trash2 size={13} />
+                                    <span className="mobile-only">Retirer la série</span>
                                   </Button>
                                 </td>
                               )}
@@ -855,6 +864,16 @@ function WorkoutEditor({ initial }: { initial: Workout }) {
           tour en haut de page ; un repos par série reste distinct.
         </p>
       </section>
+      {edit && w.status !== 'completed' && (
+        <div className="mobile-workout-finish">
+          <Button variant="secondary" busy={busy} onClick={() => complete('draft')}>
+            Mettre en pause
+          </Button>
+          <Button busy={busy} onClick={() => complete('completed')}>
+            Terminer et voir le bilan
+          </Button>
+        </div>
+      )}
       {picker && (
         <ExercisePicker
           onClose={() => setPicker(false)}

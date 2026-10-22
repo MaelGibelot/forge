@@ -6,7 +6,7 @@ import {
   LayoutDashboard,
   Dumbbell,
   BookOpen,
-  History,
+  ClipboardList,
   ChartNoAxesCombined,
   Trophy,
   Scale,
@@ -19,7 +19,7 @@ import { api, Modal, Button } from './ui';
 const links = [
   ['/tableau-de-bord', 'Vue d’ensemble', LayoutDashboard],
   ['/programmes', 'Mes programmes', Dumbbell],
-  ['/historique', 'Séances', History],
+  ['/historique', 'Séances', ClipboardList],
   ['/exercices', 'Exercices', BookOpen],
   ['/statistiques', 'Statistiques', ChartNoAxesCombined],
   ['/records', 'Records', Trophy],
@@ -27,6 +27,8 @@ const links = [
 ] as const;
 export function Shell({ children, name }: { children: React.ReactNode; name: string }) {
   const path = usePathname();
+  const active = (href: string) =>
+    path.startsWith(href) || (href === '/historique' && path.startsWith('/seances/'));
   const [error, setError] = useState('');
   const [menu, setMenu] = useState(false);
   async function logout() {
@@ -52,8 +54,8 @@ export function Shell({ children, name }: { children: React.ReactNode; name: str
             <Link
               href={href}
               key={href}
-              className={path.startsWith(href) ? 'active' : ''}
-              aria-current={path.startsWith(href) ? 'page' : undefined}
+              className={active(href) ? 'active' : ''}
+              aria-current={active(href) ? 'page' : undefined}
             >
               <Icon size={20} />
               <span>{label}</span>
@@ -108,23 +110,26 @@ export function Shell({ children, name }: { children: React.ReactNode; name: str
         </footer>
       </div>
       <nav className="mobile-nav" aria-label="Navigation mobile">
-        {links.slice(0, 5).map(([href, label, Icon]) => (
-          <Link key={href} href={href} className={path.startsWith(href) ? 'active' : ''}>
+        {[links[2], links[3], links[5], links[4]].map(([href, label, Icon]) => (
+          <Link
+            key={href}
+            href={href}
+            className={active(href) ? 'active' : ''}
+            aria-current={active(href) ? 'page' : undefined}
+          >
             <Icon size={22} />
-            <span>
-              {label === 'Vue d’ensemble'
-                ? 'Accueil'
-                : label === 'Mes programmes'
-                  ? 'Programmes'
-                  : label}
-            </span>
+            <span>{label}</span>
           </Link>
         ))}
         <button
           aria-label="Plus de rubriques"
           aria-expanded={menu}
           className={
-            ['/records', '/poids', '/parametres'].some((p) => path.startsWith(p)) ? 'active' : ''
+            ['/tableau-de-bord', '/programmes', '/poids', '/parametres'].some((p) =>
+              path.startsWith(p),
+            )
+              ? 'active'
+              : ''
           }
           onClick={() => setMenu(true)}
         >
@@ -135,7 +140,7 @@ export function Shell({ children, name }: { children: React.ReactNode; name: str
       {menu && (
         <Modal title="Votre espace" onClose={() => setMenu(false)}>
           <nav className="more-nav" aria-label="Toutes les rubriques">
-            {links.slice(4).map(([href, label, Icon]) => (
+            {links.map(([href, label, Icon]) => (
               <Link href={href} key={href} onClick={() => setMenu(false)}>
                 <Icon size={20} />
                 {label}
