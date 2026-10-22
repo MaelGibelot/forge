@@ -7,6 +7,7 @@ import { ProgramEditor } from '../src/components/programs';
 import { Statistics } from '../src/components/statistics';
 import { MuscleActivity } from '../src/components/anatomy';
 import { WorkoutPage } from '../src/components/workout';
+import { WorkoutSummary } from '../src/components/workout-summary';
 import { ExerciseLibrary, ExercisePicker } from '../src/components/exercises';
 import {
   defaults,
@@ -67,6 +68,35 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 describe('parcours des composants privés (DOM, sans service Auth simulé)', () => {
+  it('affiche le bilan d’une seule séance et filtre ses échauffements directs et indirects', () => {
+    const entry = newEntry(catalog[0], 0);
+    const workout: Workout = {
+      ...startWorkout(),
+      status: 'completed',
+      exercises: [
+        {
+          ...entry,
+          technique_ok: true,
+          sets: [
+            { ...newSet(0, entry.target), completed: true, weight: 50, reps: 10 },
+            { ...newSet(1, entry.target), completed: true, weight: 20, reps: 10, type: 'warmup' },
+            { ...newSet(2, entry.target), completed: false, weight: 50, reps: 10 },
+          ],
+        },
+      ],
+    };
+    render(<WorkoutSummary workout={workout} exercises={catalog} />);
+    const summary = within(screen.getByRole('region', { name: 'Bilan de la séance' }));
+    expect(summary.getByRole('row', { name: 'Pectoraux 1 0' })).toBeTruthy();
+    expect(summary.getByRole('row', { name: 'Triceps 0 1' })).toBeTruthy();
+    fireEvent.click(summary.getByRole('checkbox', { name: 'Inclure les échauffements' }));
+    expect(summary.getByRole('row', { name: 'Pectoraux 2 0' })).toBeTruthy();
+    expect(summary.getByRole('row', { name: 'Triceps 0 2' })).toBeTruthy();
+    fireEvent.click(summary.getByRole('button', { name: 'Secondaires' }));
+    expect(summary.getAllByText('Triceps : 2 sollicitations secondaires').length).toBeGreaterThan(
+      0,
+    );
+  });
   it('choisit 1 à 30 répétitions et conserve une ancienne valeur sans champ RPE/RIR', async () => {
     const entry = newEntry(catalog[0], 0);
     const w: Workout = {
@@ -188,7 +218,8 @@ describe('parcours des composants privés (DOM, sans service Auth simulé)', () 
     });
     fireEvent.click(screen.getByRole('checkbox', { name: 'Intervalle 1 effectué' }));
     fireEvent.click(screen.getByRole('button', { name: 'Terminer la séance' }));
-    await waitFor(() => expect(state.push).toHaveBeenCalledWith('/historique'));
+    await screen.findByRole('heading', { name: 'Bilan de la séance' });
+    expect(state.push).not.toHaveBeenCalled();
     expect(submitted!.status).toBe('completed');
     expect(submitted!.exercises[0].sets[0]).toMatchObject({
       duration_seconds: 1200,

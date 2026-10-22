@@ -97,8 +97,10 @@ test.describe('Supabase réel — comptes temporaires et parcours complet', () =
     ).toHaveValue('30');
     page.once('dialog', (d) => d.accept());
     await page.getByRole('button', { name: 'Terminer la séance' }).click();
-    await expect(page).toHaveURL(/historique/);
-    await expect(page.getByText('Terminée', { exact: true })).toBeVisible();
+    await expect(
+      page.getByRole('heading', { name: 'Bilan de la séance', exact: true }),
+    ).toBeVisible();
+    await expect(page).toHaveURL(new RegExp('/seances/' + workoutId));
     await page.goto('/statistiques');
     await page.getByLabel('Exercice analysé').selectOption('10000000-0000-4000-8000-000000000001');
     await expect(page.getByRole('img', { name: /Graphique de progression/ })).toBeVisible();

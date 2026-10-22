@@ -50,6 +50,7 @@ import {
 } from '@/lib/metrics';
 import { move, duplicateWorkout } from '@/lib/clone';
 import { useWorkoutSave } from '@/lib/use-workout-save';
+import { WorkoutSummary } from './workout-summary';
 export function WorkoutPage({ id }: { id: string }) {
   const [workout, setWorkout] = useState<Workout | null>(null),
     [error, setError] = useState<string | null>(null);
@@ -233,7 +234,8 @@ function WorkoutEditor({ initial }: { initial: Workout }) {
       });
       await editor.save();
       await reload();
-      router.push('/historique');
+      if (status === 'completed') setEdit(false);
+      else router.push('/historique');
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -322,6 +324,9 @@ function WorkoutEditor({ initial }: { initial: Workout }) {
           </>
         }
       />
+      {w.status === 'completed' && !edit && (
+        <WorkoutSummary workout={w} exercises={data.exercises} />
+      )}
       {edit && (
         <div className="workout-toolbar">
           <div className="save-status">
@@ -638,7 +643,7 @@ function WorkoutEditor({ initial }: { initial: Workout }) {
                           <th>SÉRIE</th>
                           <th>PRÉCÉDENT</th>
                           <th>TYPE</th>
-                          <th>KG</th>
+                          <th>{e.load_kind === 'assisted' ? 'AIDE (KG)' : 'KG'}</th>
                           <th>RÉP.</th>
                           <th>{e.group_id ? 'REPOS / SÉRIE*' : 'REPOS RÉALISÉ'}</th>
                           <th>FAIT</th>
@@ -682,7 +687,7 @@ function WorkoutEditor({ initial }: { initial: Workout }) {
                               </td>
                               <td className="weight">
                                 <NumberField
-                                  label={`Charge série ${si + 1}`}
+                                  label={`${e.load_kind === 'assisted' ? 'Assistance' : 'Charge'} série ${si + 1}`}
                                   value={s.weight}
                                   onChange={(n) => set({ ...s, weight: n })}
                                   nullable

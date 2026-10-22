@@ -1,4 +1,31 @@
-import type { Workout, WorkoutExercise, WorkoutSet, Preferences } from './domain';
+import {
+  muscles,
+  type Exercise,
+  type Workout,
+  type WorkoutExercise,
+  type WorkoutSet,
+  type Preferences,
+} from './domain';
+
+export function muscleSeries(workouts: Workout[], exercises: Exercise[], warmup = false) {
+  const catalog = new Map(exercises.map((e) => [e.id, e]));
+  const direct = new Map(muscles.map((m) => [m, 0]));
+  const secondary = new Map(muscles.map((m) => [m, 0]));
+  for (const w of workouts) {
+    for (const e of w.exercises) {
+      if (e.load_kind === 'cardio') continue;
+      const count = e.sets.filter((s) => eligible(s, warmup)).length;
+      direct.set(e.primary_muscle, (direct.get(e.primary_muscle) ?? 0) + count);
+      for (const m of new Set(catalog.get(e.exercise_id)?.secondary_muscles ?? [])) {
+        if (m !== e.primary_muscle) secondary.set(m, (secondary.get(m) ?? 0) + count);
+      }
+    }
+  }
+  return {
+    direct: muscles.map((name) => ({ name, count: direct.get(name) ?? 0 })),
+    secondary: muscles.map((name) => ({ name, count: secondary.get(name) ?? 0 })),
+  };
+}
 
 export function eligible(s: WorkoutSet, includeWarmup = false) {
   return (

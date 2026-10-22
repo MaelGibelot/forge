@@ -6,7 +6,7 @@ import { ChartNoAxesCombined, Trophy } from 'lucide-react';
 import { useData, allWorkouts } from './store';
 import { PageTitle, Empty, ErrorBox, NumberField } from './ui';
 import { MuscleActivity } from './anatomy';
-import { type Workout, type WorkoutExercise, newEntry, muscles } from '@/lib/domain';
+import { type Workout, type WorkoutExercise, newEntry } from '@/lib/domain';
 import {
   eligible,
   workoutVolume,
@@ -17,6 +17,7 @@ import {
   shortDate,
   recommendation,
   cardioTotals,
+  muscleSeries,
 } from '@/lib/metrics';
 const ProgressChart = dynamic(() => import('./charts').then((m) => m.ProgressChart), {
   ssr: false,
@@ -100,32 +101,7 @@ export function Statistics() {
     sets = completed
       .flatMap((w) => w.exercises.flatMap((e) => e.sets))
       .filter((s) => eligible(s, warmup)).length;
-  const direct = muscles.map((m) => ({
-    name: m,
-    count: completed.reduce(
-      (n, w) =>
-        n +
-        w.exercises
-          .filter((e) => e.load_kind !== 'cardio' && e.primary_muscle === m)
-          .reduce((n, e) => n + e.sets.filter((s) => eligible(s, warmup)).length, 0),
-      0,
-    ),
-  }));
-  const secondary = muscles.map((m) => ({
-    name: m,
-    count: completed.reduce(
-      (n, w) =>
-        n +
-        w.exercises
-          .filter(
-            (e) =>
-              e.load_kind !== 'cardio' &&
-              data.exercises.find((x) => x.id === e.exercise_id)?.secondary_muscles.includes(m),
-          )
-          .reduce((n, e) => n + e.sets.filter((s) => eligible(s, warmup)).length, 0),
-      0,
-    ),
-  }));
+  const { direct, secondary } = muscleSeries(completed, data.exercises, warmup);
   const cardio = completed.reduce(
     (sum, w) => {
       const c = cardioTotals(w, warmup);

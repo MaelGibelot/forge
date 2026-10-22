@@ -149,9 +149,11 @@ const activityLevels = [
 export function MuscleActivity({
   direct,
   secondary,
+  scope = 'period',
 }: {
   direct: { name: Muscle; count: number }[];
   secondary: { name: Muscle; count: number }[];
+  scope?: 'period' | 'workout';
 }) {
   const [mode, setMode] = useState<'direct' | 'secondary'>('direct');
   const counts = new Map((mode === 'direct' ? direct : secondary).map((m) => [m.name, m.count]));
@@ -192,7 +194,9 @@ export function MuscleActivity({
         {mode === 'direct'
           ? 'Séries validées pour le muscle principal de chaque exercice.'
           : 'Séries sollicitant ces muscles en complément, comptées séparément des séries directes.'}{' '}
-        Les couleurs suivent la période et le filtre d’échauffement choisis.
+        {scope === 'workout'
+          ? 'Les couleurs concernent cette séance et le filtre d’échauffement choisi.'
+          : 'Les couleurs suivent la période et le filtre d’échauffement choisis.'}
       </p>
       <div className="anatomy-wrap">
         {[false, true].map((back) => (
@@ -212,7 +216,8 @@ export function MuscleActivity({
       </div>
       {!Array.from(counts.values()).some((n) => n > 0) && (
         <p className="muted" style={{ marginTop: 16 }}>
-          Aucune série validée de ce type sur la période.
+          Aucune série validée de ce type{' '}
+          {scope === 'workout' ? 'dans cette séance' : 'sur la période'}.
         </p>
       )}
       <details className="notes-details">

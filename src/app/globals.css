@@ -1134,6 +1134,21 @@ hr {
   margin: 0 -5px;
   padding: 0 5px;
 }
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 14px;
+  font-size: 12px;
+}
+.data-table th,
+.data-table td {
+  padding: 9px 6px;
+  border-bottom: 1px solid var(--border);
+  text-align: right;
+}
+.data-table th:first-child {
+  text-align: left;
+}
 .sets-table {
   width: 100%;
   border-collapse: collapse;
