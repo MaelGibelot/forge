@@ -19,7 +19,7 @@ import { api, Modal, Button } from './ui';
 const links = [
   ['/tableau-de-bord', 'Vue d’ensemble', LayoutDashboard],
   ['/programmes', 'Mes programmes', Dumbbell],
-  ['/historique', 'Historique', History],
+  ['/historique', 'Séances', History],
   ['/exercices', 'Exercices', BookOpen],
   ['/statistiques', 'Statistiques', ChartNoAxesCombined],
   ['/records', 'Records', Trophy],

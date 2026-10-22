@@ -252,7 +252,7 @@ function WorkoutEditor({ initial }: { initial: Workout }) {
   return (
     <>
       <Link href="/historique" className="text-link">
-        ← Mes entraînements
+        ← Mes séances
       </Link>
       <PageTitle
         eyebrow={`${shortDate(w.started_at).toUpperCase()} · ${w.status === 'completed' ? 'SÉANCE TERMINÉE' : w.status === 'draft' ? 'BROUILLON' : 'SÉANCE EN COURS'}`}

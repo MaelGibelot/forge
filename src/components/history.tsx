@@ -21,12 +21,12 @@ export function History() {
     <>
       <PageTitle
         eyebrow="CHAQUE EFFORT LAISSE UNE TRACE"
-        title="Historique"
-        description="Retrouvez vos séances, vos sensations et vos performances exactes."
+        title="Séances"
+        description="Créez une séance libre, reprenez un brouillon ou retrouvez vos entraînements terminés."
         actions={
           <Button busy={launch.busy} onClick={() => launch.start()}>
             <Plus size={16} />
-            Séance libre
+            Nouvelle séance
           </Button>
         }
       />
@@ -37,8 +37,8 @@ export function History() {
           value={status}
           onChange={(e) => setStatus(e.target.value)}
         >
-          <option value="">Tous les entraînements</option>
-          <option value="completed">Terminés</option>
+          <option value="">Toutes les séances</option>
+          <option value="completed">Terminées</option>
           <option value="draft">Brouillons</option>
           <option value="active">En cours</option>
         </select>
