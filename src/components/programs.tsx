@@ -14,7 +14,17 @@ import {
   Link2,
   Pencil,
 } from 'lucide-react';
-import { Button, PageTitle, Empty, ErrorBox, Field, NumberField, RestInput, api } from './ui';
+import {
+  Button,
+  PageTitle,
+  Empty,
+  ErrorBox,
+  Field,
+  NumberField,
+  RepetitionSelect,
+  RestInput,
+  api,
+} from './ui';
 import { ExercisePicker } from './exercises';
 import { useData } from './store';
 import { useStartWorkout } from './dashboard';
@@ -573,22 +583,16 @@ export function Targets({
           />
         </Field>
         <Field label="Répétitions min.">
-          <NumberField
+          <RepetitionSelect
             label="Répétitions minimales"
             value={e.target.reps_min}
-            min={1}
-            max={100}
-            step={1}
             onChange={(n) => set('reps_min', n)}
           />
         </Field>
         <Field label="Répétitions max.">
-          <NumberField
+          <RepetitionSelect
             label="Répétitions maximales"
             value={e.target.reps_max}
-            min={1}
-            max={100}
-            step={1}
             onChange={(n) => set('reps_max', n)}
           />
         </Field>
@@ -597,26 +601,6 @@ export function Targets({
             label="Charge cible"
             value={e.target.weight}
             onChange={(n) => set('weight', n)}
-            nullable
-          />
-        </Field>
-        <Field label="RPE cible · facultatif">
-          <NumberField
-            label="RPE cible"
-            value={e.target.rpe}
-            min={1}
-            max={10}
-            onChange={(n) => set('rpe', n)}
-            nullable
-          />
-        </Field>
-        <Field label="RIR cible · facultatif">
-          <NumberField
-            label="RIR cible"
-            value={e.target.rir}
-            min={0}
-            max={10}
-            onChange={(n) => set('rir', n)}
             nullable
           />
         </Field>

@@ -19,7 +19,17 @@ import {
   Link2,
 } from 'lucide-react';
 import { useData, allWorkouts } from './store';
-import { Button, PageTitle, Field, ErrorBox, Empty, NumberField, RestInput, api } from './ui';
+import {
+  Button,
+  PageTitle,
+  Field,
+  ErrorBox,
+  Empty,
+  NumberField,
+  RepetitionSelect,
+  RestInput,
+  api,
+} from './ui';
 import { ExercisePicker } from './exercises';
 import {
   newEntry,
@@ -78,8 +88,8 @@ function CardioIntervals({
   return (
     <div className="stack">
       <p className="muted" style={{ fontSize: 12 }}>
-        Durée obligatoire pour valider un intervalle ; distance et effort facultatifs. Indiquez
-        vitesse, inclinaison ou résistance dans les notes.
+        Durée obligatoire pour valider un intervalle ; distance facultative. Indiquez vitesse,
+        inclinaison ou résistance dans les notes.
       </p>
       {e.sets.map((s, i) => (
         <div
@@ -129,16 +139,6 @@ function CardioIntervals({
                 step={0.01}
                 value={s.distance_km ?? null}
                 onChange={(distance_km) => set({ ...s, distance_km })}
-              />
-            </Field>
-            <Field label="Effort RPE · facultatif">
-              <NumberField
-                label={`RPE intervalle ${i + 1}`}
-                nullable
-                min={1}
-                max={10}
-                value={s.rpe}
-                onChange={(rpe) => set({ ...s, rpe })}
               />
             </Field>
             <Field label="Type">
@@ -640,8 +640,6 @@ function WorkoutEditor({ initial }: { initial: Workout }) {
                           <th>TYPE</th>
                           <th>KG</th>
                           <th>RÉP.</th>
-                          <th>RPE</th>
-                          <th>RIR</th>
                           <th>{e.group_id ? 'REPOS / SÉRIE*' : 'REPOS RÉALISÉ'}</th>
                           <th>FAIT</th>
                           {edit && <th />}
@@ -691,32 +689,10 @@ function WorkoutEditor({ initial }: { initial: Workout }) {
                                 />
                               </td>
                               <td className="reps">
-                                <NumberField
+                                <RepetitionSelect
                                   label={`Répétitions série ${si + 1}`}
                                   value={s.reps}
-                                  max={500}
-                                  step={1}
-                                  onChange={(n) => set({ ...s, reps: n ?? 0 })}
-                                />
-                              </td>
-                              <td className="effort">
-                                <NumberField
-                                  label={`RPE série ${si + 1}`}
-                                  value={s.rpe}
-                                  min={1}
-                                  max={10}
-                                  onChange={(n) => set({ ...s, rpe: n })}
-                                  nullable
-                                />
-                              </td>
-                              <td className="effort">
-                                <NumberField
-                                  label={`RIR série ${si + 1}`}
-                                  value={s.rir}
-                                  min={0}
-                                  max={10}
-                                  onChange={(n) => set({ ...s, rir: n })}
-                                  nullable
+                                  onChange={(reps) => set({ ...s, reps })}
                                 />
                               </td>
                               <td>
@@ -857,10 +833,8 @@ function WorkoutEditor({ initial }: { initial: Workout }) {
           />
         </Field>
         <p className="muted" style={{ fontSize: 11 }}>
-          RPE : effort perçu de 1 à 10 (10 = effort maximal). RIR : répétitions estimées encore
-          possibles. Les deux champs sont facultatifs et indépendants. Le repos est saisi
-          manuellement, sans chronomètre. * En superset, utilisez le repos par tour en haut de page
-          ; un repos par série reste distinct.
+          Le repos est saisi manuellement, sans chronomètre. * En superset, utilisez le repos par
+          tour en haut de page ; un repos par série reste distinct.
         </p>
       </section>
       {picker && (

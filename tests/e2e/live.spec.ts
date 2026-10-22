@@ -77,9 +77,7 @@ test.describe('Supabase réel — comptes temporaires et parcours complet', () =
     const workoutId = page.url().split('/').at(-1)!;
     const card = page.locator('.workout-card').first();
     await card.getByLabel('Charge série 1', { exact: true }).fill('80');
-    await card.getByLabel('Répétitions série 1', { exact: true }).fill('10');
-    await card.getByLabel('RPE série 1', { exact: true }).fill('8');
-    await card.getByLabel('RIR série 1', { exact: true }).fill('2');
+    await card.getByLabel('Répétitions série 1', { exact: true }).selectOption('10');
     await card.getByLabel('Repos série 1, minutes', { exact: true }).fill('2');
     await card.getByLabel('Repos série 1, secondes', { exact: true }).fill('30');
     await card.getByRole('button', { name: 'Série 1 à effectuer', exact: true }).click();

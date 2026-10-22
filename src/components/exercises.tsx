@@ -3,7 +3,17 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { Plus, Search, ArrowUpRight, BookOpen } from 'lucide-react';
 import { useData, allWorkouts } from './store';
-import { Button, PageTitle, Modal, Field, NumberField, ErrorBox, Empty, api } from './ui';
+import {
+  Button,
+  PageTitle,
+  Modal,
+  Field,
+  NumberField,
+  RepetitionSelect,
+  ErrorBox,
+  Empty,
+  api,
+} from './ui';
 import { Anatomy } from './anatomy';
 import {
   muscles,
@@ -420,24 +430,10 @@ export function ExerciseDetail({ id }: { id: string }) {
                   />
                 </Field>
                 <Field label="Répétitions min.">
-                  <NumberField
-                    label="Minimum"
-                    min={1}
-                    max={100}
-                    step={1}
-                    value={min}
-                    onChange={(n) => setMin(n ?? 8)}
-                  />
+                  <RepetitionSelect label="Minimum" value={min} onChange={setMin} />
                 </Field>
                 <Field label="Répétitions max.">
-                  <NumberField
-                    label="Maximum"
-                    min={1}
-                    max={100}
-                    step={1}
-                    value={max}
-                    onChange={(n) => setMax(n ?? 12)}
-                  />
+                  <RepetitionSelect label="Maximum" value={max} onChange={setMax} />
                 </Field>
               </div>
               <p className="muted" style={{ fontSize: 11 }}>

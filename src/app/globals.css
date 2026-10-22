@@ -1138,7 +1138,7 @@ hr {
   width: 100%;
   border-collapse: collapse;
   font-size: 12px;
-  min-width: 720px;
+  min-width: 590px;
 }
 .sets-table th {
   text-align: left;
@@ -1186,9 +1186,6 @@ hr {
 }
 .sets-table td.reps {
   width: 68px;
-}
-.sets-table td.effort {
-  width: 63px;
 }
 .set-done {
   width: 38px;

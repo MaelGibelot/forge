@@ -181,6 +181,32 @@ export function NumberField({
     />
   );
 }
+const repetitionOptions = Array.from({ length: 30 }, (_, i) => i + 1);
+export function RepetitionSelect({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: number;
+  onChange: (n: number) => void;
+}) {
+  const legacy = !repetitionOptions.includes(value);
+  return (
+    <select aria-label={label} value={value} onChange={(e) => onChange(Number(e.target.value))}>
+      {legacy && (
+        <option value={value} disabled>
+          {value} · ancienne valeur
+        </option>
+      )}
+      {repetitionOptions.map((n) => (
+        <option key={n} value={n}>
+          {n}
+        </option>
+      ))}
+    </select>
+  );
+}
 export function RestInput({
   value,
   onChange,

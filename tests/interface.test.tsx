@@ -67,6 +67,53 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 describe('parcours des composants privés (DOM, sans service Auth simulé)', () => {
+  it('choisit 1 à 30 répétitions et conserve une ancienne valeur sans champ RPE/RIR', async () => {
+    const entry = newEntry(catalog[0], 0);
+    const w: Workout = {
+      ...startWorkout(),
+      revision: 1,
+      exercises: [
+        {
+          ...entry,
+          technique_ok: true,
+          sets: [{ ...newSet(0, entry.target), reps: 45, rpe: 8, rir: 2 }],
+        },
+      ],
+    };
+    let submitted: Workout | undefined;
+    state.api.mockImplementation(async (_url: string, options?: RequestInit) => {
+      if (options?.method === 'POST') {
+        submitted = workoutSchema.parse(JSON.parse(String(options.body)));
+        return { revision: 2 };
+      }
+      return [w];
+    });
+    render(<WorkoutPage id={w.id} />);
+    const reps = await screen.findByRole('combobox', { name: 'Répétitions série 1' });
+    expect((reps as HTMLSelectElement).value).toBe('45');
+    expect(
+      within(reps)
+        .getAllByRole('option')
+        .filter((o) => !(o as HTMLOptionElement).disabled)
+        .map((o) => o.textContent),
+    ).toEqual(Array.from({ length: 30 }, (_, i) => String(i + 1)));
+    expect(screen.queryByLabelText(/RPE|RIR/)).toBeNull();
+    fireEvent.change(reps, { target: { value: '30' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Sauver en brouillon' }));
+    await waitFor(() => expect(submitted?.exercises[0].sets[0].reps).toBe(30));
+    expect(submitted!.exercises[0].sets[0]).toMatchObject({ rpe: 8, rir: 2 });
+  });
+  it('retrouve le pupitre EZ et distingue les prises dans le sélecteur', () => {
+    const select = vi.fn();
+    render(<ExercisePicker onClose={() => {}} onSelect={select} />);
+    const search = screen.getByRole('textbox', { name: 'Rechercher un exercice' });
+    fireEvent.change(search, { target: { value: 'pupitre' } });
+    fireEvent.click(screen.getByRole('button', { name: /Curl pupitre · barre EZ/ }));
+    expect(select.mock.lastCall![0].name).toBe('Curl pupitre · barre EZ');
+    fireEvent.change(search, { target: { value: 'Tirage vertical · supination serrée' } });
+    fireEvent.click(screen.getByRole('button', { name: /Tirage vertical · supination serrée/ }));
+    expect(select.mock.lastCall![0].id).not.toBe(select.mock.calls[0][0].id);
+  });
   it('retrouve une machine Technogym dans la bibliothèque et le sélecteur', async () => {
     const machine = catalog.find((e) => e.name.includes('Skillrow'))!;
     const library = render(<ExerciseLibrary />);
@@ -180,6 +227,10 @@ describe('parcours des composants privés (DOM, sans service Auth simulé)', () 
       });
       fireEvent.click(picker.getAllByRole('button').find((b) => b.textContent?.startsWith(name))!);
     }
+    expect(screen.queryByLabelText(/RPE cible|RIR cible/)).toBeNull();
+    fireEvent.change(screen.getAllByRole('combobox', { name: 'Répétitions maximales' })[0], {
+      target: { value: '20' },
+    });
     fireEvent.click(
       screen.getByRole('checkbox', { name: 'Sélectionner Développé couché pour un superset' }),
     );
@@ -193,6 +244,7 @@ describe('parcours des composants privés (DOM, sans service Auth simulé)', () 
     await waitFor(() => expect(state.push).toHaveBeenCalledWith('/programmes'));
     const submitted = programSchema.parse(JSON.parse(state.api.mock.calls[0][1].body));
     expect(submitted.name).toBe('Upper test');
+    expect(submitted.days[0].exercises[0].target.reps_max).toBe(20);
     expect(submitted.days[0].groups).toHaveLength(1);
     expect(
       submitted.days[0].exercises.every((e) => e.group_id === submitted.days[0].groups[0].id),
