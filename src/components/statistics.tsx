@@ -4,7 +4,7 @@ import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { ChartNoAxesCombined, Trophy } from 'lucide-react';
 import { useData, allWorkouts } from './store';
-import { PageTitle, Empty, ErrorBox, NumberField, api } from './ui';
+import { PageTitle, Empty, ErrorBox, NumberField, Button, api } from './ui';
 import { MuscleActivity } from './anatomy';
 import { type Workout, type WorkoutExercise, newEntry } from '@/lib/domain';
 import {
@@ -19,6 +19,7 @@ import {
   cardioTotals,
   muscleSeries,
   weeklyFrequency,
+  exerciseFrequency,
 } from '@/lib/metrics';
 const ProgressChart = dynamic(() => import('./charts').then((m) => m.ProgressChart), {
   ssr: false,
@@ -356,13 +357,34 @@ export function Statistics() {
 export function Records() {
   const { data } = useData();
   const [workouts, setWorkouts] = useState<Workout[] | null>(null),
+    [query, setQuery] = useState(''),
     [error, setError] = useState<string | null>(null);
   useEffect(() => {
     allWorkouts()
       .then(setWorkouts)
       .catch((e) => setError(e.message));
   }, [data.workouts]);
-  const prs = records(workouts ?? []);
+  const prs = useMemo(() => records(workouts ?? []), [workouts]);
+  const frequency = useMemo(() => exerciseFrequency(workouts ?? []), [workouts]);
+  const catalog = useMemo(() => new Map(data.exercises.map((e) => [e.id, e])), [data.exercises]);
+  const normalize = (text: string) =>
+    text
+      .normalize('NFD')
+      .replace(/\p{Diacritic}/gu, '')
+      .toLocaleLowerCase('fr');
+  const search = normalize(query.trim());
+  const filtered = prs
+    .filter((r) => {
+      const e = catalog.get(r.exercise_id);
+      return normalize(
+        `${r.name} ${e?.name ?? ''} ${e?.english_name ?? ''} ${e?.category ?? ''}`,
+      ).includes(search);
+    })
+    .sort(
+      (a, b) =>
+        (frequency.get(b.exercise_id) ?? 0) - (frequency.get(a.exercise_id) ?? 0) ||
+        a.name.localeCompare(b.name, 'fr'),
+    );
   return (
     <>
       <PageTitle
@@ -371,7 +393,34 @@ export function Records() {
         description="Recalculés à partir de toutes vos séances terminées, après chaque correction ou suppression."
       />
       <ErrorBox message={error} />
-      {!prs.length ? (
+      <div className="search-bar">
+        <input
+          type="search"
+          aria-label="Rechercher un exercice dans les records"
+          placeholder="Rechercher un exercice, une machine ou une prise…"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+        />
+        {query && (
+          <Button variant="ghost" onClick={() => setQuery('')}>
+            Effacer la recherche
+          </Button>
+        )}
+      </div>
+      <p className="muted" role="status" style={{ fontSize: 12, marginBottom: 20 }}>
+        {workouts
+          ? `${filtered.length} exercice${filtered.length === 1 ? '' : 's'} · les plus pratiqués en premier`
+          : 'Chargement des records…'}
+      </p>
+      {prs.length > 0 && !filtered.length ? (
+        <section className="card">
+          <Empty
+            icon={<Trophy />}
+            title="Aucun record pour cette recherche"
+            description="Essayez un autre nom d’exercice, une machine ou une prise."
+          />
+        </section>
+      ) : !prs.length ? (
         <section className="card">
           <Empty
             icon={<Trophy />}
@@ -385,7 +434,7 @@ export function Records() {
         </section>
       ) : (
         <div className="grid-3">
-          {prs.map((r) => (
+          {filtered.map((r) => (
             <section className="card record-card" key={r.exercise_id}>
               <div className="flex between">
                 <span className="trophy">
@@ -399,7 +448,10 @@ export function Records() {
               <h3>
                 <Link href={`/exercices/${r.exercise_id}`}>{r.name} ↗</Link>
               </h3>
-              <small>{shortDate(r.date)}</small>
+              <small>
+                {shortDate(r.date)} · {frequency.get(r.exercise_id) ?? 0}{' '}
+                {(frequency.get(r.exercise_id) ?? 0) === 1 ? 'séance' : 'séances'}
+              </small>
               <hr />
               <div className="stack gap-sm">
                 <div className="flex between">

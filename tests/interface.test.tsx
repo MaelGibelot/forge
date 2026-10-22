@@ -4,7 +4,7 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-li
 import type { ComponentProps } from 'react';
 import { Shell } from '../src/components/shell';
 import { ProgramEditor } from '../src/components/programs';
-import { Statistics } from '../src/components/statistics';
+import { Statistics, Records } from '../src/components/statistics';
 import { MuscleActivity } from '../src/components/anatomy';
 import { WorkoutPage } from '../src/components/workout';
 import { WorkoutSummary } from '../src/components/workout-summary';
@@ -70,6 +70,46 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 describe('parcours des composants privés (DOM, sans service Auth simulé)', () => {
+  it('classe les records par séances pratiquées et recherche un exercice sans accents ou par nom anglais', async () => {
+    const entry = (index: number) => {
+      const e = newEntry(catalog[index], 0);
+      return {
+        ...e,
+        technique_ok: true,
+        sets: [{ ...newSet(0, e.target), completed: true, reps: 10, weight: 50 }],
+      };
+    };
+    const common = entry(0),
+      rare = entry(1);
+    const first: Workout = {
+      ...startWorkout(),
+      status: 'completed',
+      exercises: [rare, { ...rare, id: crypto.randomUUID() }, common],
+    };
+    const second: Workout = { ...startWorkout(), status: 'completed', exercises: [common] };
+    const third: Workout = { ...startWorkout(), status: 'draft', exercises: [rare] };
+    state.allWorkouts.mockResolvedValue([first, second, third]);
+    render(<Records />);
+    await screen.findByRole('heading', { name: /Développé couché ↗/ });
+    expect(screen.getAllByRole('heading', { level: 3 }).map((h) => h.textContent)).toEqual([
+      'Développé couché ↗',
+      'Développé incliné ↗',
+    ]);
+    expect(screen.getByText(/2 séances/)).toBeTruthy();
+    expect(screen.getByText(/1 séance$/)).toBeTruthy();
+    const search = screen.getByRole('searchbox', {
+      name: 'Rechercher un exercice dans les records',
+    });
+    fireEvent.change(search, { target: { value: '  incline  ' } });
+    expect(screen.getAllByRole('heading', { level: 3 })).toHaveLength(1);
+    expect(screen.getByRole('heading', { name: /Développé incliné ↗/ })).toBeTruthy();
+    fireEvent.change(search, { target: { value: 'Bench press' } });
+    expect(screen.getAllByRole('heading', { level: 3 })).toHaveLength(2);
+    fireEvent.change(search, { target: { value: 'Inexistant xyz' } });
+    expect(screen.getByText('Aucun record pour cette recherche')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Effacer la recherche' }));
+    expect(screen.getAllByRole('heading', { level: 3 })).toHaveLength(2);
+  });
   it('refait une séance terminée avec des champs vides et conserve le rappel précédent', async () => {
     const entry = newEntry(catalog[0], 0);
     const old: Workout = {

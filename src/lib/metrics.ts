@@ -93,6 +93,20 @@ export function estimated1RM(
     return null;
   return s.reps === 1 ? s.weight : s.weight * (1 + s.reps / 30);
 }
+export function exerciseFrequency(workouts: Workout[]) {
+  const counts = new Map<string, number>();
+  for (const w of workouts) {
+    if (w.status !== 'completed') continue;
+    const ids = new Set(
+      w.exercises
+        .filter((e) => e.load_kind !== 'cardio' && e.sets.some((s) => eligible(s)))
+        .map((e) => e.exercise_id),
+    );
+    for (const id of ids) counts.set(id, (counts.get(id) ?? 0) + 1);
+  }
+  return counts;
+}
+
 export function records(workouts: Workout[]) {
   const result = new Map<
     string,

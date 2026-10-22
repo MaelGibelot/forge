@@ -17,6 +17,7 @@ import {
   estimated1RM,
   records,
   recommendation,
+  exerciseFrequency,
 } from '../src/lib/metrics';
 import { duplicateProgram, duplicateWorkout } from '../src/lib/clone';
 function exercise(reps = [10, 10, 10], weight = 80): WorkoutExercise {
@@ -38,6 +39,23 @@ function session(e = exercise(), index = 1): Workout {
   };
 }
 describe('mesures', () => {
+  it('compte une pratique par séance et exclut brouillons, séries non validées et échauffements seuls', () => {
+    const e = exercise();
+    const a = session(e);
+    a.exercises.push({ ...e, id: crypto.randomUUID() });
+    const warmup = session({ ...e, sets: e.sets.map((s) => ({ ...s, type: 'warmup' })) });
+    const undone = session({ ...e, sets: e.sets.map((s) => ({ ...s, completed: false })) });
+    const before = JSON.stringify([a, warmup, undone]);
+    const counts = exerciseFrequency([
+      a,
+      session(e),
+      warmup,
+      undone,
+      { ...session(e), status: 'draft' },
+    ]);
+    expect(counts.get(e.exercise_id)).toBe(2);
+    expect(JSON.stringify([a, warmup, undone])).toBe(before);
+  });
   it('additionne deux blocs du même exercice dans le record de volume par séance', () => {
     const e = exercise();
     const w = session(e);
