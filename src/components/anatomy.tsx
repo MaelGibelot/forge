@@ -146,6 +146,12 @@ const activityLevels = [
   { label: '6 à 10 séries', color: '#e5b65c' },
   { label: '11 séries et plus', color: '#f18b54' },
 ];
+const workoutLevels = [
+  { label: '0 série', color: 'var(--panel2)' },
+  { label: '1 à 2 séries', color: '#94bca4' },
+  { label: '3 à 5 séries', color: '#e5b65c' },
+  { label: '6 séries et plus', color: '#f18b54' },
+];
 export function MuscleActivity({
   direct,
   secondary,
@@ -158,9 +164,12 @@ export function MuscleActivity({
   const [mode, setMode] = useState<'direct' | 'secondary'>('direct');
   const counts = new Map((mode === 'direct' ? direct : secondary).map((m) => [m.name, m.count]));
   const label = mode === 'direct' ? 'séries directes' : 'sollicitations secondaires';
+  const levels = scope === 'workout' ? workoutLevels : activityLevels;
   const color = (muscle: Muscle) => {
     const count = counts.get(muscle) ?? 0;
-    return activityLevels[count === 0 ? 0 : count <= 5 ? 1 : count <= 10 ? 2 : 3].color;
+    const low = scope === 'workout' ? 2 : 5;
+    const medium = scope === 'workout' ? 5 : 10;
+    return levels[count === 0 ? 0 : count <= low ? 1 : count <= medium ? 2 : 3].color;
   };
   const description = (muscle: Muscle) => `${muscle} : ${counts.get(muscle) ?? 0} ${label}`;
   return (
@@ -207,7 +216,7 @@ export function MuscleActivity({
         ))}
       </div>
       <div className="legend" aria-label="Code couleur du nombre de séries">
-        {activityLevels.map((level) => (
+        {levels.map((level) => (
           <span key={level.label}>
             <i style={{ background: level.color, border: '1px solid var(--border)' }} />
             {level.label}

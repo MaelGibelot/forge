@@ -21,4 +21,8 @@ test('protège les pages et l’API sans session', async ({ page, request }) => 
   await expect(page).toHaveURL(/\/connexion$/);
   const r = await request.get('/api/data');
   expect([401, 503]).toContain(r.status());
+  const first = await request.get(
+    `/api/workouts/first-completed?until=${encodeURIComponent(new Date().toISOString())}`,
+  );
+  expect([401, 503]).toContain(first.status());
 });

@@ -68,6 +68,58 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 describe('parcours des composants privés (DOM, sans service Auth simulé)', () => {
+  it('recalcule la moyenne à chaque filtre sans compter les jours précédant le suivi', async () => {
+    const now = Date.now();
+    const dated = (days: number) => ({
+      ...startWorkout(),
+      status: 'completed' as const,
+      started_at: new Date(now - days * 864e5).toISOString(),
+    });
+    const workouts = [dated(1), dated(14), dated(3)];
+    state.api.mockResolvedValue({ started_at: workouts[1].started_at });
+    state.allWorkouts.mockImplementation(async (since?: string) =>
+      workouts.filter((w) => !since || w.started_at >= since),
+    );
+    render(<Statistics />);
+    const metric = () => within(screen.getByText('Moyenne hebdomadaire').parentElement!);
+    await waitFor(() => expect(metric().getByText('1,5')).toBeTruthy());
+    fireEvent.click(screen.getByRole('button', { name: '7 jours' }));
+    await waitFor(() => expect(metric().getByText('2')).toBeTruthy());
+    for (const name of ['30 jours', '90 jours', '6 mois', '1 an', 'Tout']) {
+      fireEvent.click(screen.getByRole('button', { name }));
+      await waitFor(() => expect(metric().getByText('1,5')).toBeTruthy());
+    }
+  });
+  it('abaisse les seuils de couleur uniquement pour le bilan individuel, y compris les indirects', () => {
+    render(
+      <MuscleActivity
+        scope="workout"
+        direct={[
+          { name: 'Pectoraux', count: 2 },
+          { name: 'Abdominaux', count: 3 },
+          { name: 'Biceps', count: 5 },
+          { name: 'Triceps', count: 6 },
+        ]}
+        secondary={[
+          { name: 'Pectoraux', count: 3 },
+          { name: 'Biceps', count: 6 },
+        ]}
+      />,
+    );
+    const fill = (text: string) =>
+      within(screen.getByRole('img', { name: /Vue avant/ }))
+        .getByText(text)
+        .parentElement!.getAttribute('fill');
+    expect(fill('Pectoraux : 2 séries directes')).toBe('#94bca4');
+    expect(fill('Abdominaux : 3 séries directes')).toBe('#e5b65c');
+    expect(fill('Biceps : 5 séries directes')).toBe('#e5b65c');
+    expect(fill('Triceps : 6 séries directes')).toBe('#f18b54');
+    expect(screen.getByText('1 à 2 séries')).toBeTruthy();
+    expect(screen.getByText('6 séries et plus')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Secondaires' }));
+    expect(fill('Pectoraux : 3 sollicitations secondaires')).toBe('#e5b65c');
+    expect(fill('Biceps : 6 sollicitations secondaires')).toBe('#f18b54');
+  });
   it('affiche le bilan d’une seule séance et filtre ses échauffements directs et indirects', () => {
     const entry = newEntry(catalog[0], 0);
     const workout: Workout = {
@@ -282,6 +334,7 @@ describe('parcours des composants privés (DOM, sans service Auth simulé)', () 
     ).toBe(true);
   });
   it('limite les statistiques à 7 jours et adapte la carte aux séries validées et aux échauffements', async () => {
+    state.api.mockResolvedValue({ started_at: new Date(Date.now() - 10 * 864e5).toISOString() });
     const entry = newEntry(catalog[0], 0);
     const exercise: WorkoutExercise = {
       ...entry,

@@ -7,6 +7,28 @@ import {
   type Preferences,
 } from './domain';
 
+export function weeklyFrequency(
+  workouts: Workout[],
+  period: number,
+  firstCompletedAt: string | null,
+  now: number,
+) {
+  const day = 864e5;
+  const since = period ? now - period * day : -Infinity;
+  const completed = workouts.filter(
+    (w) =>
+      w.status === 'completed' &&
+      Date.parse(w.started_at) >= since &&
+      Date.parse(w.started_at) <= now,
+  );
+  if (!completed.length) return { rate: 0, days: period || 7 };
+  const oldest = completed.reduce((min, w) => Math.min(min, Date.parse(w.started_at)), now);
+  const first = firstCompletedAt ? Date.parse(firstCompletedAt) : oldest;
+  const start = Math.max(since, Number.isFinite(first) ? Math.min(first, oldest) : oldest);
+  const days = Math.max(7, (now - start) / day);
+  return { rate: (completed.length * 7) / days, days };
+}
+
 export function muscleSeries(workouts: Workout[], exercises: Exercise[], warmup = false) {
   const catalog = new Map(exercises.map((e) => [e.id, e]));
   const direct = new Map(muscles.map((m) => [m, 0]));

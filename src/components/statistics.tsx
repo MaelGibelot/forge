@@ -4,7 +4,7 @@ import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { ChartNoAxesCombined, Trophy } from 'lucide-react';
 import { useData, allWorkouts } from './store';
-import { PageTitle, Empty, ErrorBox, NumberField } from './ui';
+import { PageTitle, Empty, ErrorBox, NumberField, api } from './ui';
 import { MuscleActivity } from './anatomy';
 import { type Workout, type WorkoutExercise, newEntry } from '@/lib/domain';
 import {
@@ -18,6 +18,7 @@ import {
   recommendation,
   cardioTotals,
   muscleSeries,
+  weeklyFrequency,
 } from '@/lib/metrics';
 const ProgressChart = dynamic(() => import('./charts').then((m) => m.ProgressChart), {
   ssr: false,
@@ -32,13 +33,22 @@ export function Statistics() {
     [warmup, setWarmup] = useState(false),
     [atWeight, setAtWeight] = useState<number | null>(20),
     [workouts, setWorkouts] = useState<Workout[] | null>(null),
+    [firstCompletedAt, setFirstCompletedAt] = useState<string | null>(null),
     [error, setError] = useState<string | null>(null);
   useEffect(() => {
     let live = true;
-    const since = period ? new Date(Date.now() - period * 864e5).toISOString() : undefined;
-    allWorkouts(since)
-      .then((w) => {
-        if (live) setWorkouts(w);
+    const since = period ? new Date(now - period * 864e5).toISOString() : undefined;
+    Promise.all([
+      allWorkouts(since),
+      api<{ started_at: string | null }>(
+        `/api/workouts/first-completed?until=${encodeURIComponent(new Date(now).toISOString())}`,
+      ),
+    ])
+      .then(([w, first]) => {
+        if (live) {
+          setWorkouts(w);
+          setFirstCompletedAt(first.started_at);
+        }
       })
       .catch((e) => {
         if (live) setError(e.message);
@@ -46,11 +56,13 @@ export function Statistics() {
     return () => {
       live = false;
     };
-  }, [period, data.workouts]);
+  }, [period, data.workouts, now]);
   const completed = useMemo(
-    () => workouts?.filter((w) => w.status === 'completed') ?? [],
-    [workouts],
+    () =>
+      workouts?.filter((w) => w.status === 'completed' && Date.parse(w.started_at) <= now) ?? [],
+    [workouts, now],
   );
+  const frequency = weeklyFrequency(completed, period, firstCompletedAt, now);
   const exercise = data.exercises.find((e) => e.id === exerciseId);
   const isCardio = exercise?.load_kind === 'cardio';
   const metric = isCardio
@@ -169,16 +181,9 @@ export function Statistics() {
           ['Séries de travail', sets, warmup ? 'échauffements inclus' : 'échauffements exclus'],
           ['Volume externe', total, 'kg cumulés'],
           [
-            'Fréquence',
-            period
-              ? completed.length / (period / 7)
-              : completed.length /
-                Math.max(
-                  1,
-                  (now - Date.parse(completed.at(-1)?.started_at ?? new Date(now).toISOString())) /
-                    6048e5,
-                ),
-            'séances / semaine',
+            'Moyenne hebdomadaire',
+            frequency.rate,
+            `séances / semaine · sur ${number(frequency.days, 1)} jours de suivi`,
           ],
           ['Durée cardio', cardio.seconds / 60, 'minutes sur la période'],
           ['Distance cardio', cardio.distance, 'km renseignés'],
