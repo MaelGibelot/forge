@@ -20,13 +20,15 @@ try {
   );
   const names = [...new Set(columns.map((c) => c.table_name))];
   const type = (c) =>
-    c.udt_name.startsWith('_')
-      ? 'string[]'
-      : ['int2', 'int4', 'int8', 'numeric', 'float4', 'float8'].includes(c.udt_name)
-        ? 'number'
-        : c.udt_name === 'bool'
-          ? 'boolean'
-          : 'string';
+    ['json', 'jsonb'].includes(c.udt_name)
+      ? 'Json'
+      : c.udt_name.startsWith('_')
+        ? 'string[]'
+        : ['int2', 'int4', 'int8', 'numeric', 'float4', 'float8'].includes(c.udt_name)
+          ? 'number'
+          : c.udt_name === 'bool'
+            ? 'boolean'
+            : 'string';
   let source = `// Généré par npm run db:types depuis la migration versionnée.\nexport type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[];\nexport type Database = { public: { Tables: {\n`;
   for (const name of names) {
     const cols = columns.filter((c) => c.table_name === name);

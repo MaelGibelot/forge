@@ -25,4 +25,6 @@ test('protège les pages et l’API sans session', async ({ page, request }) => 
     `/api/workouts/first-completed?until=${encodeURIComponent(new Date().toISOString())}`,
   );
   expect([401, 503]).toContain(first.status());
+  const templates = await request.get('/api/workout-templates');
+  expect([401, 503]).toContain(templates.status());
 });

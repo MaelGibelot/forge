@@ -6,6 +6,7 @@ import { ArrowUpRight, Plus, Dumbbell, Layers, Weight, Trophy, CalendarDays } fr
 import { useData, allWorkouts } from './store';
 import { Button, PageTitle, Empty, ErrorBox, api } from './ui';
 import { type Workout, type ProgramDay, startWorkout } from '@/lib/domain';
+import { workoutFromTemplate, type WorkoutTemplate } from '@/lib/templates';
 import {
   workoutVolume,
   records,
@@ -23,7 +24,7 @@ export function useStartWorkout() {
   return {
     busy,
     error,
-    start: async (day?: ProgramDay) => {
+    start: async (day?: ProgramDay, template?: WorkoutTemplate) => {
       setBusy(true);
       setError(null);
       try {
@@ -32,7 +33,7 @@ export function useStartWorkout() {
           router.push(`/seances/${existing.id}`);
           return;
         }
-        const w = startWorkout(day, data.workouts);
+        const w = template ? workoutFromTemplate(template) : startWorkout(day, data.workouts);
         const r = await api<{ revision: number }>('/api/workouts', {
           method: 'POST',
           body: JSON.stringify(w),

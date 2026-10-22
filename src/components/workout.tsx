@@ -48,7 +48,9 @@ import {
   cardioTotals,
   duration,
 } from '@/lib/metrics';
-import { move, duplicateWorkout } from '@/lib/clone';
+import { move } from '@/lib/clone';
+import { templateFromWorkout, workoutFromTemplate } from '@/lib/templates';
+import { SaveTemplateButton } from './session-templates';
 import { useWorkoutSave } from '@/lib/use-workout-save';
 import { WorkoutSummary } from './workout-summary';
 export function WorkoutPage({ id }: { id: string }) {
@@ -269,10 +271,11 @@ function WorkoutEditor({ initial }: { initial: Workout }) {
                 <Button
                   variant="secondary"
                   busy={busy}
+                  disabled={!w.exercises.length}
                   onClick={async () => {
                     setBusy(true);
                     try {
-                      const next = duplicateWorkout(w);
+                      const next = workoutFromTemplate(templateFromWorkout(w));
                       const r = await api<{ revision: number }>('/api/workouts', {
                         method: 'POST',
                         body: JSON.stringify(next),
@@ -287,8 +290,9 @@ function WorkoutEditor({ initial }: { initial: Workout }) {
                   }}
                 >
                   <Copy size={15} />
-                  Dupliquer
+                  Refaire cette séance
                 </Button>
+                <SaveTemplateButton workout={w} />
               </>
             )}
             <Button
@@ -536,8 +540,10 @@ function WorkoutEditor({ initial }: { initial: Workout }) {
                     `${e.target.sets} intervalle(s) cardio · durée et distance`
                   ) : (
                     <>
-                      {e.target.sets} × {e.target.reps_min}–{e.target.reps_max} répétitions ·{' '}
-                      {e.primary_muscle} ·{' '}
+                      {w.source_day_id
+                        ? `${e.target.sets} × ${e.target.reps_min}–${e.target.reps_max} répétitions`
+                        : `${e.sets.length} séries`}{' '}
+                      · {e.primary_muscle} ·{' '}
                       {e.load_kind === 'assisted'
                         ? 'Assistance en kg'
                         : e.load_kind === 'bodyweight'
@@ -712,6 +718,7 @@ function WorkoutEditor({ initial }: { initial: Workout }) {
                                   className={`set-done ${s.completed ? 'done' : ''}`}
                                   aria-label={`Série ${si + 1} ${s.completed ? 'effectuée' : 'à effectuer'}`}
                                   aria-pressed={s.completed}
+                                  disabled={!s.completed && s.reps <= 0}
                                   onClick={() => set({ ...s, completed: !s.completed })}
                                 >
                                   <Check size={18} />
@@ -748,7 +755,13 @@ function WorkoutEditor({ initial }: { initial: Workout }) {
                         onClick={() =>
                           updateExercise({
                             ...e,
-                            sets: [...e.sets, newSet(e.sets.length, e.target, e.load_kind)],
+                            sets: [
+                              ...e.sets,
+                              {
+                                ...newSet(e.sets.length, e.target, e.load_kind),
+                                ...(w.source_day_id ? {} : { weight: null, reps: 0 }),
+                              },
+                            ],
                           })
                         }
                       >

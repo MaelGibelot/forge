@@ -7,6 +7,7 @@ import { useStartWorkout } from './dashboard';
 import { Button, PageTitle, Empty, ErrorBox, api } from './ui';
 import type { Workout } from '@/lib/domain';
 import { workoutVolume, eligible, number, shortDate, cardioTotals, duration } from '@/lib/metrics';
+import { SessionTemplates } from './session-templates';
 export function History() {
   const { data, reload } = useData();
   const launch = useStartWorkout();
@@ -31,6 +32,7 @@ export function History() {
         }
       />
       <ErrorBox message={error ?? launch.error} />
+      <SessionTemplates />
       <div className="search-bar">
         <select
           aria-label="État des séances"

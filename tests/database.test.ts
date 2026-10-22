@@ -3,6 +3,7 @@ import { PGlite } from '@electric-sql/pglite';
 import { readFileSync, readdirSync } from 'node:fs';
 import { catalog } from '../src/lib/catalog';
 import { newEntry, startWorkout, newSet, type Program } from '../src/lib/domain';
+import { templateFromWorkout, workoutFromTemplate } from '../src/lib/templates';
 const db = new PGlite();
 const alice = '20000000-0000-4000-8000-000000000001',
   bob = '20000000-0000-4000-8000-000000000002';
@@ -47,6 +48,77 @@ afterAll(async () => {
   await db.close();
 });
 describe('PostgreSQL embarqué : migrations, transactions et RLS', () => {
+  it('sauvegarde les modèles privés, interdit leur transfert et lance une séance sans résultats', async () => {
+    const entry = newEntry(catalog[0], 0);
+    const source = {
+      ...startWorkout(),
+      exercises: [
+        {
+          ...entry,
+          technique_ok: true,
+          sets: [{ ...newSet(0, entry.target), weight: 60, reps: 10, completed: true }],
+        },
+      ],
+    };
+    const t = templateFromWorkout(source);
+    await asUser(alice);
+    await db.query(
+      'insert into public.workout_templates(id,user_id,name,definition) values($1,$2,$3,$4)',
+      [t.id, alice, t.name, JSON.stringify(t.definition)],
+    );
+    expect((await db.query('select * from public.workout_templates')).rows).toHaveLength(1);
+    await asUser(bob);
+    expect((await db.query('select * from public.workout_templates')).rows).toHaveLength(0);
+    expect(
+      (
+        await db.query('update public.workout_templates set name=$1 where id=$2 returning id', [
+          'Interdit',
+          t.id,
+        ])
+      ).rows,
+    ).toHaveLength(0);
+    expect(
+      (await db.query('delete from public.workout_templates where id=$1 returning id', [t.id]))
+        .rows,
+    ).toHaveLength(0);
+    await expect(
+      db.query(
+        'insert into public.workout_templates(id,user_id,name,definition) values($1,$2,$3,$4)',
+        [crypto.randomUUID(), alice, t.name, JSON.stringify(t.definition)],
+      ),
+    ).rejects.toThrow();
+    await asUser(alice);
+    await expect(
+      db.query('update public.workout_templates set user_id=$1 where id=$2', [bob, t.id]),
+    ).rejects.toThrow();
+    await db.query(
+      'update public.workout_templates set name=$1,revision=2 where id=$2 and revision=1',
+      ['Renommé', t.id],
+    );
+    expect(
+      (
+        await db.query(
+          'delete from public.workout_templates where id=$1 and revision=1 returning id',
+          [t.id],
+        )
+      ).rows,
+    ).toHaveLength(0);
+    const next = workoutFromTemplate(t);
+    await rpc('save_workout', next);
+    const read = await db.query<{ w: (typeof next)[] }>(
+      'select public.read_workouts(0,30,null,$1) w',
+      [next.id],
+    );
+    expect(read.rows[0].w[0].exercises[0].sets[0]).toMatchObject({
+      weight: null,
+      reps: 0,
+      completed: false,
+    });
+    await db.exec('reset role;set role anon;');
+    await expect(db.query('select * from public.workout_templates')).rejects.toThrow();
+    await db.exec('reset role');
+    await db.query('delete from public.workout_sessions where id=$1', [next.id]);
+  });
   it('enregistre et isole les intervalles cardio, y compris lors d’un accès SQL direct', async () => {
     await asUser(alice);
     const machine = catalog.find((e) => e.load_kind === 'cardio')!;
@@ -279,6 +351,7 @@ describe('PostgreSQL embarqué : migrations, transactions et RLS', () => {
       'workout_exercises',
       'workout_sets',
       'bodyweight_entries',
+      'workout_templates',
     ])
       expect((await db.query(`select * from public.${table}`)).rows).toHaveLength(0);
   });

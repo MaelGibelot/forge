@@ -773,6 +773,41 @@ export type Database = {
           },
         ];
       };
+      workout_templates: {
+        Row: {
+          id: string;
+          user_id: string;
+          revision: number;
+          name: string;
+          definition: Json;
+          created_at: string;
+        };
+        Insert: {
+          id: string;
+          user_id: string;
+          revision?: number;
+          name: string;
+          definition: Json;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          revision?: number;
+          name?: string;
+          definition?: Json;
+          created_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'workout_templates_user_id_fkey';
+            columns: ['user_id'];
+            isOneToOne: false;
+            referencedRelation: 'users';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
     };
     Views: { [_ in never]: never };
     Enums: { [_ in never]: never };

@@ -8,6 +8,8 @@ import { Statistics } from '../src/components/statistics';
 import { MuscleActivity } from '../src/components/anatomy';
 import { WorkoutPage } from '../src/components/workout';
 import { WorkoutSummary } from '../src/components/workout-summary';
+import { SaveTemplateButton, SessionTemplates } from '../src/components/session-templates';
+import { templateSchema } from '../src/lib/templates';
 import { ExerciseLibrary, ExercisePicker } from '../src/components/exercises';
 import {
   defaults,
@@ -68,6 +70,85 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 describe('parcours des composants privés (DOM, sans service Auth simulé)', () => {
+  it('refait une séance terminée avec des champs vides et conserve le rappel précédent', async () => {
+    const entry = newEntry(catalog[0], 0);
+    const old: Workout = {
+      ...startWorkout(),
+      status: 'completed',
+      exercises: [
+        {
+          ...entry,
+          technique_ok: true,
+          sets: [{ ...newSet(0, entry.target), weight: 70, reps: 10, completed: true }],
+        },
+      ],
+    };
+    let next: Workout | undefined;
+    state.api.mockImplementation(async (_url: string, options?: RequestInit) => {
+      if (options?.method === 'POST') {
+        next = workoutSchema.parse(JSON.parse(String(options.body)));
+        return { revision: 1 };
+      }
+      return [old];
+    });
+    state.allWorkouts.mockResolvedValue([old]);
+    const oldPage = render(<WorkoutPage id={old.id} />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Refaire cette séance' }));
+    await waitFor(() => expect(state.push).toHaveBeenCalledWith(`/seances/${next!.id}`));
+    expect(next!.exercises[0].sets[0]).toMatchObject({ weight: null, reps: 0, completed: false });
+    oldPage.unmount();
+    state.api.mockResolvedValue([next]);
+    render(<WorkoutPage id={next!.id} />);
+    const reps = await screen.findByRole('combobox', { name: 'Répétitions série 1' });
+    expect((reps as HTMLSelectElement).value).toBe('0');
+    expect(within(reps).getByRole('option', { name: 'Choisir' })).toBeTruthy();
+    expect(
+      (screen.getByRole('spinbutton', { name: 'Charge série 1' }) as HTMLInputElement).value,
+    ).toBe('');
+    expect(await screen.findByText('70 kg × 10')).toBeTruthy();
+    expect(
+      (screen.getByRole('button', { name: 'Série 1 à effectuer' }) as HTMLButtonElement).disabled,
+    ).toBe(true);
+  });
+  it('enregistre un modèle sans performances et le démarre depuis la liste', async () => {
+    const entry = newEntry(catalog[0], 0);
+    const workout: Workout = {
+      ...startWorkout(),
+      status: 'completed',
+      exercises: [
+        {
+          ...entry,
+          technique_ok: true,
+          sets: [{ ...newSet(0, entry.target), weight: 75, reps: 12, completed: true }],
+        },
+      ],
+    };
+    state.api.mockResolvedValue({ success: true });
+    const save = render(<SaveTemplateButton workout={workout} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Créer un modèle' }));
+    fireEvent.change(screen.getByLabelText('Nom du modèle'), { target: { value: 'Push libre' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Enregistrer le modèle' }));
+    await screen.findByText('Modèle enregistré. Retrouvez-le dans « Séances ».');
+    const template = templateSchema.parse(JSON.parse(state.api.mock.calls[0][1].body));
+    expect(template.name).toBe('Push libre');
+    expect(template.definition.exercises[0]).not.toHaveProperty('weight');
+    expect(template.definition.exercises[0]).not.toHaveProperty('reps');
+    save.unmount();
+    let launched: Workout | undefined;
+    state.api.mockImplementation(async (url: string, options?: RequestInit) => {
+      if (url === '/api/workout-templates') return [template];
+      launched = workoutSchema.parse(JSON.parse(String(options?.body)));
+      return { revision: 1 };
+    });
+    render(<SessionTemplates />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Démarrer le modèle Push libre' }));
+    await waitFor(() => expect(state.push).toHaveBeenCalledWith(`/seances/${launched!.id}`));
+    expect(launched!.exercises[0].sets[0]).toMatchObject({
+      weight: null,
+      reps: 0,
+      completed: false,
+    });
+  });
   it('recalcule la moyenne à chaque filtre sans compter les jours précédant le suivi', async () => {
     const now = Date.now();
     const dated = (days: number) => ({

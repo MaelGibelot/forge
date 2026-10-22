@@ -196,7 +196,7 @@ export function RepetitionSelect({
     <select aria-label={label} value={value} onChange={(e) => onChange(Number(e.target.value))}>
       {legacy && (
         <option value={value} disabled>
-          {value} · ancienne valeur
+          {value === 0 ? 'Choisir' : `${value} · ancienne valeur`}
         </option>
       )}
       {repetitionOptions.map((n) => (
