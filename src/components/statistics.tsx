@@ -6,6 +6,7 @@ import { ChartNoAxesCombined, Trophy } from 'lucide-react';
 import { useData, allWorkouts } from './store';
 import { PageTitle, Empty, ErrorBox, NumberField, Button, api } from './ui';
 import { MuscleActivity } from './anatomy';
+import { ProgressionDetails } from './progression-details';
 import { type Workout, type WorkoutExercise, newEntry } from '@/lib/domain';
 import {
   eligible,
@@ -286,6 +287,7 @@ export function Statistics() {
             <div>
               <strong>{suggestion.title}</strong>
               <p>{suggestion.reason} Analyse limitée à la période affichée.</p>
+              {entry && <ProgressionDetails suggestion={suggestion} loadKind={entry.load_kind} />}
             </div>
           </div>
         )}

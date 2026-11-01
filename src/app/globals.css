@@ -2217,7 +2217,7 @@ hr {
   .sets-table tr {
     display: grid;
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-    grid-template-areas: 'index done' 'previous previous' 'weight reps' 'type rest' 'remove remove';
+    grid-template-areas: 'index done' 'previous previous' 'weight reps' 'type rest' 'failure failure' 'remove remove';
     gap: 12px;
     padding: 14px;
     border: 1px solid var(--border);
@@ -2402,4 +2402,44 @@ hr {
     padding: 8px 12px;
     font-size: 12px;
   }
+}
+
+.progression-details {
+  margin-top: 12px;
+  font-size: 12px;
+}
+.progression-details ol,
+.progression-details ul {
+  padding-left: 20px;
+}
+.progression-details li {
+  margin: 6px 0;
+}
+.set-failure .check-label {
+  min-height: 44px;
+  white-space: nowrap;
+  font-size: 12px;
+}
+@media (max-width: 640px) {
+  .sets-table .set-failure {
+    grid-area: failure;
+  }
+  .sets-table .set-failure input {
+    width: 20px;
+    min-height: 20px;
+    flex: none;
+  }
+  .set-failure .check-label {
+    font-size: 14px;
+  }
+  .progression-details {
+    font-size: 13px;
+  }
+}
+.sets-table .set-failure input[type='checkbox'] {
+  width: 20px;
+  min-width: 20px;
+  height: 20px;
+  min-height: 20px;
+  padding: 0;
 }

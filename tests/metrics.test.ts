@@ -213,15 +213,17 @@ describe('validation', () => {
   });
 });
 describe('surcharge progressive reproductible', () => {
-  it('suggère l’incrément configuré après validation de toutes les séries', () => {
+  it('suggère l’incrément après deux séances validées au haut de la fourchette', () => {
     const e = exercise();
-    expect(recommendation(e, [session(e)], defaults)).toMatchObject({
+    expect(recommendation(e, [session(e, 1), session(e, 2)], defaults)).toMatchObject({
       kind: 'increase',
       weight: 82.5,
     });
   });
   it('accepte l’absence de RPE/RIR quand la technique et l’effort sont validés', () => {
-    expect(recommendation(exercise(), [session()], defaults).kind).toBe('increase');
+    expect(
+      recommendation(exercise(), [session(exercise(), 1), session(exercise(), 2)], defaults).kind,
+    ).toBe('increase');
   });
   it('refuse la hausse sans validation ou si l’effort dépasse le seuil', () => {
     const e = exercise();
@@ -257,7 +259,7 @@ describe('surcharge progressive reproductible', () => {
   it('ignore échauffements et séries incomplètes', () => {
     const e = exercise();
     e.sets.push({ ...e.sets[0], id: crypto.randomUUID(), type: 'warmup', weight: 20, reps: 5 });
-    expect(recommendation(e, [session(e)], defaults).kind).toBe('increase');
+    expect(recommendation(e, [session(e, 1), session(e, 2)], defaults).kind).toBe('increase');
     e.sets[0].completed = false;
     expect(recommendation(e, [session(e)], defaults).kind).toBe('insufficient');
   });
@@ -276,7 +278,7 @@ describe('surcharge progressive reproductible', () => {
   });
   it('recalcule après suppression ou modification de l’historique', () => {
     const e = exercise();
-    expect(recommendation(e, [session(e)], defaults).kind).toBe('increase');
+    expect(recommendation(e, [session(e, 1), session(e, 2)], defaults).kind).toBe('increase');
     e.sets[0].reps = 7;
     expect(recommendation(e, [session(e)], defaults).kind).toBe('hold');
     expect(recommendation(e, [], defaults).kind).toBe('insufficient');

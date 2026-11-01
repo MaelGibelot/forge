@@ -681,6 +681,7 @@ export type Database = {
           notes: string;
           duration_seconds: number | null;
           distance_km: number | null;
+          reached_failure: boolean;
         };
         Insert: {
           id: string;
@@ -697,6 +698,7 @@ export type Database = {
           notes?: string;
           duration_seconds?: number | null;
           distance_km?: number | null;
+          reached_failure?: boolean;
         };
         Update: {
           id?: string;
@@ -713,6 +715,7 @@ export type Database = {
           notes?: string;
           duration_seconds?: number | null;
           distance_km?: number | null;
+          reached_failure?: boolean;
         };
         Relationships: [
           {

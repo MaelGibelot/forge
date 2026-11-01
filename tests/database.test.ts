@@ -48,6 +48,83 @@ afterAll(async () => {
   await db.close();
 });
 describe('PostgreSQL embarqué : migrations, transactions et RLS', () => {
+  it('persiste l’échec, isole les comptes et refuse les échecs sur des séries non effectuées ou cardio', async () => {
+    const entry = newEntry(catalog[0], 0);
+    const w = {
+      ...startWorkout(),
+      exercises: [
+        {
+          ...entry,
+          technique_ok: true,
+          sets: [
+            {
+              ...newSet(0, entry.target),
+              weight: 60,
+              reps: 10,
+              completed: true,
+              reached_failure: true,
+            },
+          ],
+        },
+      ],
+    };
+    await asUser(alice);
+    await rpc('save_workout', w);
+    const read = await db.query<{ w: (typeof w)[] }>(
+      'select public.read_workouts(0,30,null,$1) w',
+      [w.id],
+    );
+    expect(read.rows[0].w[0].exercises[0].sets[0].reached_failure).toBe(true);
+    await asUser(bob);
+    expect(
+      (
+        await db.query('select reached_failure from public.workout_sets where id=$1', [
+          w.exercises[0].sets[0].id,
+        ])
+      ).rows,
+    ).toHaveLength(0);
+    expect(
+      (
+        await db.query(
+          'update public.workout_sets set reached_failure=false where id=$1 returning id',
+          [w.exercises[0].sets[0].id],
+        )
+      ).rows,
+    ).toHaveLength(0);
+    await asUser(alice);
+    await expect(
+      db.query('update public.workout_sets set completed=false where id=$1', [
+        w.exercises[0].sets[0].id,
+      ]),
+    ).rejects.toThrow();
+    const cardio = newEntry(
+      catalog.find((e) => e.load_kind === 'cardio')!,
+      0,
+    );
+    const invalid = {
+      ...startWorkout(),
+      exercises: [
+        {
+          ...cardio,
+          technique_ok: false,
+          sets: [
+            {
+              ...newSet(0, cardio.target, 'cardio'),
+              duration_seconds: 600,
+              completed: true,
+              reached_failure: true,
+            },
+          ],
+        },
+      ],
+    };
+    await expect(rpc('save_workout', invalid)).rejects.toThrow();
+    expect(
+      (await db.query('select id from public.workout_sessions where id=$1', [invalid.id])).rows,
+    ).toHaveLength(0);
+    await db.exec('reset role');
+    await db.query('delete from public.workout_sessions where id=$1', [w.id]);
+  });
   it('sauvegarde les modèles privés, interdit leur transfert et lance une séance sans résultats', async () => {
     const entry = newEntry(catalog[0], 0);
     const source = {

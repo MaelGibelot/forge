@@ -53,6 +53,7 @@ import { templateFromWorkout, workoutFromTemplate } from '@/lib/templates';
 import { SaveTemplateButton } from './session-templates';
 import { useWorkoutSave } from '@/lib/use-workout-save';
 import { WorkoutSummary } from './workout-summary';
+import { ProgressionDetails } from './progression-details';
 export function WorkoutPage({ id }: { id: string }) {
   const [workout, setWorkout] = useState<Workout | null>(null),
     [error, setError] = useState<string | null>(null);
@@ -500,6 +501,7 @@ function WorkoutEditor({ initial }: { initial: Workout }) {
               history.filter((h) => h.started_at < w.started_at),
               data.preferences,
               w.id,
+              { workout: w, exercises: data.exercises },
             )
           : null;
         const set = (s: WorkoutSet) =>
@@ -604,28 +606,46 @@ function WorkoutEditor({ initial }: { initial: Workout }) {
                 <div>
                   <strong>{suggestion.title}</strong>
                   <p>{suggestion.reason}</p>
+                  <ProgressionDetails suggestion={suggestion} loadKind={e.load_kind} />
                 </div>
                 <div className="actions">
-                  {suggestion.weight !== undefined && (
+                  {suggestion.plan && e.sets.some((s) => s.type === 'normal' && !s.completed) && (
                     <Button
                       variant="secondary"
+                      disabled={e.sets
+                        .filter((s) => s.type === 'normal')
+                        .every(
+                          (s, i) =>
+                            s.completed ||
+                            !suggestion.plan?.[i] ||
+                            (s.weight === suggestion.plan[i].weight &&
+                              s.reps === suggestion.plan[i].reps),
+                        )}
                       onClick={() => {
                         if (
-                          e.sets.some((s) => s.completed) &&
+                          e.sets.some((s) => s.completed || s.weight !== null || s.reps > 0) &&
                           !confirm(
                             'Appliquer la suggestion aux séries restantes ? Les séries déjà réalisées seront conservées.',
                           )
                         )
                           return;
+                        let normalIndex = -1;
                         updateExercise({
                           ...e,
-                          sets: e.sets.map((s) =>
-                            s.completed || s.type !== 'normal'
+                          sets: e.sets.map((s) => {
+                            if (s.type !== 'normal') return s;
+                            normalIndex++;
+                            const plan = suggestion.plan?.[normalIndex];
+                            return s.completed || !plan
                               ? s
-                              : { ...s, weight: suggestion.weight! },
-                          ),
+                              : {
+                                  ...s,
+                                  weight: plan.weight,
+                                  reps: plan.reps,
+                                  reached_failure: false,
+                                };
+                          }),
                         });
-                        setIgnored([...ignored, e.id]);
                       }}
                     >
                       Appliquer aux séries restantes
@@ -653,6 +673,7 @@ function WorkoutEditor({ initial }: { initial: Workout }) {
                           <th>RÉP.</th>
                           <th>{e.group_id ? 'REPOS / SÉRIE*' : 'REPOS RÉALISÉ'}</th>
                           <th>FAIT</th>
+                          <th>ÉCHEC</th>
                           {edit && <th />}
                         </tr>
                       </thead>
@@ -670,6 +691,7 @@ function WorkoutEditor({ initial }: { initial: Workout }) {
                                 {prev
                                   ? `${prev.weight ?? 'PDC'}${prev.weight !== null ? ' kg' : ''} × ${prev.reps}`
                                   : '—'}
+                                {prev?.reached_failure && <small>À l’échec</small>}
                                 {prev?.rest_seconds !== null &&
                                   prev?.rest_seconds !== undefined && (
                                     <small>
@@ -724,13 +746,38 @@ function WorkoutEditor({ initial }: { initial: Workout }) {
                                   aria-label={`Série ${si + 1} ${s.completed ? 'effectuée' : 'à effectuer'}`}
                                   aria-pressed={s.completed}
                                   disabled={!s.completed && s.reps <= 0}
-                                  onClick={() => set({ ...s, completed: !s.completed })}
+                                  onClick={() =>
+                                    set({
+                                      ...s,
+                                      completed: !s.completed,
+                                      reached_failure: s.completed ? false : s.reached_failure,
+                                    })
+                                  }
                                 >
                                   <Check size={18} />
                                   <span className="mobile-only">
                                     {s.completed ? 'Fait' : 'Valider'}
                                   </span>
                                 </button>
+                              </td>
+                              <td className="set-failure">
+                                <label className="check-label">
+                                  <input
+                                    type="checkbox"
+                                    aria-label={`À l’échec série ${si + 1}`}
+                                    aria-describedby="failure-hint"
+                                    checked={s.reached_failure ?? false}
+                                    disabled={s.reps <= 0}
+                                    onChange={(event) =>
+                                      set({
+                                        ...s,
+                                        reached_failure: event.target.checked,
+                                        completed: event.target.checked || s.completed,
+                                      })
+                                    }
+                                  />
+                                  <span>À l’échec</span>
+                                </label>
                               </td>
                               {edit && (
                                 <td className="set-delete">
@@ -860,6 +907,10 @@ function WorkoutEditor({ initial }: { initial: Workout }) {
           />
         </Field>
         <p className="muted" style={{ fontSize: 11 }}>
+          <span id="failure-hint">
+            À l’échec : cochez si vous ne pouviez plus effectuer une répétition complète. Cocher
+            valide aussi la série. Une case non cochée signifie qu’aucun échec n’est déclaré.
+          </span>{' '}
           Le repos est saisi manuellement, sans chronomètre. * En superset, utilisez le repos par
           tour en haut de page ; un repos par série reste distinct.
         </p>

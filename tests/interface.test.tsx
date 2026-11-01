@@ -70,6 +70,91 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 describe('parcours des composants privés (DOM, sans service Auth simulé)', () => {
+  it('déclare un échec, valide la série, sauvegarde le flag puis le retire si la série est dévalidée', async () => {
+    const entry = newEntry(catalog[0], 0);
+    const w: Workout = {
+      ...startWorkout(),
+      revision: 1,
+      exercises: [
+        {
+          ...entry,
+          technique_ok: false,
+          sets: [{ ...newSet(0, entry.target), reps: 10, weight: 60 }],
+        },
+      ],
+    };
+    let submitted: Workout | undefined;
+    state.api.mockImplementation(async (_url: string, options?: RequestInit) => {
+      if (options?.method === 'POST') {
+        submitted = workoutSchema.parse(JSON.parse(String(options.body)));
+        return { revision: 2 };
+      }
+      return [w];
+    });
+    render(<WorkoutPage id={w.id} />);
+    const checkbox = await screen.findByRole('checkbox', { name: 'À l’échec série 1' });
+    fireEvent.click(checkbox);
+    expect((checkbox as HTMLInputElement).checked).toBe(true);
+    expect(
+      screen.getByRole('button', { name: 'Série 1 effectuée' }).getAttribute('aria-pressed'),
+    ).toBe('true');
+    fireEvent.click(screen.getByRole('button', { name: 'Sauver en brouillon' }));
+    await waitFor(() => expect(submitted?.exercises[0].sets[0].reached_failure).toBe(true));
+    fireEvent.click(screen.getByRole('button', { name: 'Série 1 effectuée' }));
+    expect((checkbox as HTMLInputElement).checked).toBe(false);
+  });
+  it('applique un plan seulement aux séries normales restantes sans toucher aux séries réalisées', async () => {
+    const base = newEntry(catalog[0], 0);
+    const e: WorkoutExercise = {
+      ...base,
+      technique_ok: true,
+      sets: [0, 1, 2].map((i) => ({
+        ...newSet(i, base.target),
+        reps: 12,
+        weight: 80,
+        completed: true,
+      })),
+    };
+    const old: Workout[] = [2, 1].map((day) => ({
+      ...startWorkout(),
+      status: 'completed',
+      started_at: new Date(Date.now() - day * 864e5).toISOString(),
+      exercises: [e],
+    }));
+    const w: Workout = {
+      ...startWorkout(),
+      revision: 1,
+      exercises: [
+        {
+          ...e,
+          id: crypto.randomUUID(),
+          sets: [
+            { ...newSet(0, e.target), completed: true, reps: 10, weight: 77.5 },
+            { ...newSet(1, e.target), weight: null, reps: 0 },
+            { ...newSet(2, e.target), weight: null, reps: 0 },
+            { ...newSet(3, e.target), type: 'warmup', weight: 20, reps: 10 },
+          ],
+        },
+      ],
+    };
+    state.allWorkouts.mockResolvedValue(old);
+    state.api.mockResolvedValue([w]);
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    render(<WorkoutPage id={w.id} />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Appliquer aux séries restantes' }));
+    expect(
+      (screen.getByRole('spinbutton', { name: 'Charge série 1' }) as HTMLInputElement).value,
+    ).toBe('77.5');
+    expect(
+      (screen.getByRole('spinbutton', { name: 'Charge série 2' }) as HTMLInputElement).value,
+    ).toBe('82.5');
+    expect(
+      (screen.getByRole('combobox', { name: 'Répétitions série 2' }) as HTMLSelectElement).value,
+    ).toBe('8');
+    expect(
+      (screen.getByRole('spinbutton', { name: 'Charge série 4' }) as HTMLInputElement).value,
+    ).toBe('20');
+  });
   it('classe les records par séances pratiquées et recherche un exercice sans accents ou par nom anglais', async () => {
     const entry = (index: number) => {
       const e = newEntry(catalog[index], 0);

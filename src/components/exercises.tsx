@@ -24,6 +24,7 @@ import {
   type WorkoutExercise,
 } from '@/lib/domain';
 import { records, recommendation, number } from '@/lib/metrics';
+import { ProgressionDetails } from './progression-details';
 export function ExercisePicker({
   onSelect,
   onClose,
@@ -418,6 +419,7 @@ export function ExerciseDetail({ id }: { id: string }) {
                 <p className="muted" style={{ fontSize: 12, marginTop: 10 }}>
                   {rec?.reason}
                 </p>
+                {rec && <ProgressionDetails suggestion={rec} loadKind={exercise.load_kind} />}
               </div>
               <div className="field-grid">
                 <Field label="Incrément (kg)">

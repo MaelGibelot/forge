@@ -53,6 +53,7 @@ export const setSchema = z.object({
   rest_seconds: z.number().int().min(0).max(7200).nullable(),
   type: z.enum(['normal', 'warmup', 'drop']),
   completed: z.boolean(),
+  reached_failure: z.boolean().default(false),
   notes: z.string().max(1000),
   duration_seconds: z.number().int().min(0).max(86400).nullable().optional(),
   distance_km: optionalNumber(0, 10000).optional(),
@@ -166,12 +167,17 @@ export const workoutSchema = z
             ? s.reps === 0 &&
               s.weight === null &&
               s.rir === null &&
+              !s.reached_failure &&
               s.type !== 'drop' &&
               (!s.completed || (s.duration_seconds ?? 0) > 0)
             : s.duration_seconds == null && s.distance_km == null && (!s.completed || s.reps > 0),
         ),
       ),
     'Une série effectuée doit contenir au moins une répétition ; un intervalle cardio doit avoir une durée positive, sans charge ni répétitions.',
+  )
+  .refine(
+    (w) => w.exercises.every((e) => e.sets.every((s) => !s.reached_failure || s.completed)),
+    'Un échec ne peut être déclaré que sur une série effectuée.',
   )
   .refine(
     (w) =>
@@ -270,6 +276,7 @@ export function newSet(
     rest_seconds: null,
     type: 'normal',
     completed: false,
+    reached_failure: false,
     notes: '',
     duration_seconds: null,
     distance_km: null,

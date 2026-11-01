@@ -44,6 +44,7 @@ export function duplicateWorkout(w: Workout): Workout {
         ...s,
         id: crypto.randomUUID(),
         completed: false,
+        reached_failure: false,
         rest_seconds: null,
         rpe: null,
         rir: null,
