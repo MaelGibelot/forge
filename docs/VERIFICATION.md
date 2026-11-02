@@ -2,6 +2,11 @@
 
 L’application enregistre une séance depuis l’interface vers une route HTTP Next.js, puis vers une RPC transactionnelle Supabase et des tables PostgreSQL normalisées. La réponse serveur détermine l’état de sauvegarde de l’interface.
 
+## Ajustement du 2 novembre : charge de départ déjà réussie
+
+- Après 26 kg × 10 puis 28 kg × 10, une proposition limitée à la première série donne 28 kg × 8 (fourchette 8–12), y compris si une troisième série a été ajoutée. Le volume différent reste exclu des comparaisons de tendance ; les autres séries restent inchangées.
+- 115 tests réussis : scénario de la capture, application partielle dans le composant, maintien des autres champs et de la série ajoutée vide, retrait après réalisation, priorité de l’échec, exclusions des montées trop grandes/charges descendantes et des fourchettes modifiées. TypeScript et ESLint réussis.
+
 | Contrôle | Résultat observé | Portée |
 | --- | --- | --- |
 | TypeScript strict | Réussi, aucune erreur | Code de l’application, scripts et tests |

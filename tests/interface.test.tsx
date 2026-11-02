@@ -70,6 +70,57 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 describe('parcours des composants privés (DOM, sans service Auth simulé)', () => {
+  it('applique le repère 28 × 8 uniquement à la première série sans remplir la série ajoutée', async () => {
+    const base = newEntry(catalog[0], 0);
+    const past = {
+      ...base,
+      technique_ok: false,
+      sets: [26, 28].map((weight, i) => ({
+        ...newSet(i, base.target),
+        weight,
+        reps: 10,
+        completed: true,
+      })),
+    };
+    const old: Workout = {
+      ...startWorkout(),
+      status: 'completed',
+      started_at: new Date(Date.now() - 864e5).toISOString(),
+      exercises: [past],
+    };
+    const w: Workout = {
+      ...startWorkout(),
+      revision: 1,
+      exercises: [
+        {
+          ...base,
+          technique_ok: false,
+          sets: [26, 28, null].map((weight, i) => ({
+            ...newSet(i, base.target),
+            weight,
+          })),
+        },
+      ],
+    };
+    state.allWorkouts.mockResolvedValue([old]);
+    state.api.mockResolvedValue([w]);
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    render(<WorkoutPage id={w.id} />);
+    await screen.findByText('Commencez par votre charge déjà réussie');
+    expect(
+      within(screen.getByRole('list', { name: 'Plan proposé par série' })).getAllByRole('listitem'),
+    ).toHaveLength(1);
+    fireEvent.click(screen.getByRole('button', { name: 'Appliquer aux séries restantes' }));
+    for (const [i, expected] of ['28', '28', ''].entries()) {
+      expect(
+        (screen.getByRole('spinbutton', { name: `Charge série ${i + 1}` }) as HTMLInputElement)
+          .value,
+      ).toBe(expected);
+    }
+    expect(
+      (screen.getByRole('combobox', { name: 'Répétitions série 1' }) as HTMLSelectElement).value,
+    ).toBe('8');
+  });
   it('déclare un échec, valide la série, sauvegarde le flag puis le retire si la série est dévalidée', async () => {
     const entry = newEntry(catalog[0], 0);
     const w: Workout = {

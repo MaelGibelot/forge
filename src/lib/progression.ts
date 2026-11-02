@@ -150,26 +150,49 @@ export function recommendation(
     latest.entry.target.reps_min === entry.target.reps_min &&
     latest.entry.target.reps_max === entry.target.reps_max;
   const freeStructure = context && !context.workout.source_day_id && !latest.workout.source_day_id;
+  const countChanged =
+    latest.sets.length !== expected ||
+    (!freeStructure && latest.entry.target.sets !== entry.target.sets);
+  // A rising load within one session is evidence for an opening set, not for
+  // repeating that load across every set (nor for a comparable volume trend).
+  const strongest = latest.sets.reduce((best, s) =>
+    s.weight! > best.weight! || (s.weight === best.weight && s.reps > best.reps) ? s : best,
+  );
+  const opening =
+    entry.load_kind === 'external' &&
+    strongest.weight! > latest.sets[0].weight! &&
+    strongest.weight! <= latest.sets[0].weight! * 1.1 &&
+    strongest.reps >= entry.target.reps_min + 2 &&
+    latest.sets.every(
+      (s, i) =>
+        s.reps >= entry.target.reps_min && (i === 0 || s.weight! >= latest.sets[i - 1].weight!),
+    )
+      ? { weight: strongest.weight, reps: entry.target.reps_min }
+      : null;
   if (
     !sameTargets ||
     Boolean(entry.group_id) !== Boolean(latest.entry.group_id) ||
     (context && groupKey(context.workout, entry) !== groupKey(latest.workout, latest.entry)) ||
     latest.entry.load_kind !== entry.load_kind ||
-    latest.sets.length !== expected ||
-    (!freeStructure && latest.entry.target.sets !== entry.target.sets)
+    (countChanged && !opening)
   )
     return insufficient(
       'Le nombre de séries, le mode de charge ou la fourchette ont changé. Confirmez une séance avec cette structure avant de comparer.',
     );
   const history: Observation[] = [latest];
   for (const w of appearances.slice(1)) {
+    if (countChanged) break;
     const o = observe(w, entry.exercise_id);
     if (!o || !compatible(latest, o)) break;
     history.push(o);
   }
-  const baseline = latest.sets.map((s) => ({ weight: s.weight, reps: Math.min(30, s.reps) }));
+  const baseline = latest.sets
+    .slice(0, countChanged ? 1 : expected)
+    .map((s) => ({ weight: s.weight, reps: Math.min(30, s.reps) }));
   const analysis = [
-    `${history.length} séance(s) récente(s) à structure comparable pour cet exercice.`,
+    countChanged
+      ? `${latest.sets.length} séries précédentes pour ${expected} prévues : le volume n’est pas comparable. Seul un repère pour la première série est proposé.`
+      : `${history.length} séance(s) récente(s) à structure comparable pour cet exercice.`,
     'Échauffements et séries dégressives exclus des performances comparées ; leurs échecs déclarés restent pris en compte. Brouillons exclus de l’historique.',
   ];
 
@@ -309,13 +332,32 @@ export function recommendation(
       (prefs.max_rpe !== null && s.rpe !== null && s.rpe > prefs.max_rpe) ||
       (prefs.min_rir !== null && s.rir !== null && s.rir < prefs.min_rir),
   );
-  if (!latest.entry.technique_ok || excessive)
+  if (excessive)
     return answer(
       'hold',
       'Stabilisez la charge',
-      excessive
-        ? 'Les anciens indicateurs d’effort renseignés dépassent vos seuils.'
-        : 'La technique de la dernière occurrence n’a pas été validée. Confirmez une exécution maîtrisée avant de monter.',
+      'Les anciens indicateurs d’effort renseignés dépassent vos seuils.',
+    );
+  if (opening && entry.sets.some((s) => s.type === 'normal' && s.completed))
+    return {
+      kind: 'hold',
+      title: 'Ajustez les séries suivantes',
+      reason:
+        'Le repère concernait uniquement la première série. Elle est déjà réalisée ; ajustez les suivantes selon votre exécution, sans extrapoler cette charge à toutes les séries.',
+      analysis,
+    };
+  if (opening)
+    return answer(
+      'hold',
+      'Commencez par votre charge déjà réussie',
+      `Vous avez réalisé ${strongest.weight} kg × ${strongest.reps} répétitions après une série plus légère. Essayez ${opening.weight} kg × ${opening.reps} en première série, puis ajustez les suivantes selon votre exécution. Ce repère ne prédit pas la tenue de cette charge sur toutes les séries.`,
+      [opening],
+    );
+  if (!latest.entry.technique_ok)
+    return answer(
+      'hold',
+      'Stabilisez la charge',
+      'La technique de la dernière occurrence n’a pas été validée. Confirmez une exécution maîtrisée avant de monter.',
     );
   const atTop = (o: Observation) =>
     o.entry.technique_ok &&

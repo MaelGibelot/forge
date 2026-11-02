@@ -44,6 +44,67 @@ const history = () => [
 ];
 
 describe('échec et propositions explicables', () => {
+  it('propose 28 kg × 8 pour démarrer après 26 × 10 puis 28 × 10, malgré une série ajoutée', () => {
+    const past = movement(0, [10, 10], [26, 28]);
+    past.technique_ok = false;
+    const entry = movement(0, [8, 8, 8], [26, 28, 28]);
+    entry.sets.forEach((s) => {
+      s.completed = false;
+    });
+    const current = { ...startWorkout(), exercises: [entry] };
+    const result = recommendation(entry, [session(1, [past])], defaults, current.id, {
+      workout: current,
+      exercises: catalog,
+    });
+    expect(result.plan).toEqual([{ weight: 28, reps: 8 }]);
+    expect(result.reason).toContain('28 kg × 10');
+    expect(result.analysis?.[0]).toContain('volume n’est pas comparable');
+    // A completed opening set must never turn into advice for an unproven third set.
+    entry.sets[0].completed = true;
+    expect(
+      recommendation(entry, [session(1, [past])], defaults, current.id, {
+        workout: current,
+        exercises: catalog,
+      }).plan,
+    ).toBeUndefined();
+    entry.sets[0].reached_failure = true;
+    expect(
+      recommendation(entry, [session(1, [past])], defaults, current.id, {
+        workout: current,
+        exercises: catalog,
+      }).title,
+    ).toBe('Échec déclaré sur cet exercice');
+  });
+  it('ne consolide pas une charge à peine réussie, une descente de charge ou un saut trop grand', () => {
+    const entry = movement(0, [8, 8], [26, 28]);
+    entry.sets.forEach((s) => {
+      s.completed = false;
+    });
+    for (const [reps, weights] of [
+      [
+        [10, 8],
+        [26, 28],
+      ],
+      [
+        [10, 10],
+        [28, 26],
+      ],
+      [
+        [10, 10],
+        [20, 28],
+      ],
+    ]) {
+      const past = movement(0, reps, weights);
+      expect(recommendation(entry, [session(1, [past])], defaults).plan?.length).toBe(2);
+    }
+    const past = movement(0, [10, 10], [26, 28]);
+    past.sets[1].reached_failure = true;
+    expect(recommendation(entry, [session(1, [past])], defaults).title).toContain('sans ajouter');
+    expect(recommendation(entry, [session(1, [past])], defaults).plan?.[0].weight).toBe(26);
+    past.sets[1].reached_failure = false;
+    entry.target.reps_max = 15;
+    expect(recommendation(entry, [session(1, [past])], defaults).kind).toBe('insufficient');
+  });
   it('retire immédiatement la proposition de charge après un échec dans l’exercice en cours', () => {
     const entry = movement();
     entry.sets[0].reached_failure = true;
