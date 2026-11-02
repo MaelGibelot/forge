@@ -58,6 +58,9 @@ describe('échec et propositions explicables', () => {
     });
     expect(result.plan).toEqual([{ weight: 28, reps: 8 }]);
     expect(result.reason).toContain('28 kg × 10');
+    expect(recommendation(past, [session(1, [past])], defaults).plan).toEqual([
+      { weight: 28, reps: 8 },
+    ]);
     expect(result.analysis?.[0]).toContain('volume n’est pas comparable');
     // A completed opening set must never turn into advice for an unproven third set.
     entry.sets[0].completed = true;

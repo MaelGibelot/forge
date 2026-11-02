@@ -338,7 +338,7 @@ export function recommendation(
       'Stabilisez la charge',
       'Les anciens indicateurs d’effort renseignés dépassent vos seuils.',
     );
-  if (opening && entry.sets.some((s) => s.type === 'normal' && s.completed))
+  if (opening && context && entry.sets.some((s) => s.type === 'normal' && s.completed))
     return {
       kind: 'hold',
       title: 'Ajustez les séries suivantes',
