@@ -1,4 +1,5 @@
 'use client';
+import { RepGoalFields } from './rep-goal-fields';
 import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -14,17 +15,7 @@ import {
   Link2,
   Pencil,
 } from 'lucide-react';
-import {
-  Button,
-  PageTitle,
-  Empty,
-  ErrorBox,
-  Field,
-  NumberField,
-  RepetitionSelect,
-  RestInput,
-  api,
-} from './ui';
+import { Button, PageTitle, Empty, ErrorBox, Field, NumberField, RestInput, api } from './ui';
 import { ExercisePicker } from './exercises';
 import { useData } from './store';
 import { useStartWorkout } from './dashboard';
@@ -531,6 +522,7 @@ export function ProgramEditor({ id }: { id?: string }) {
                   e,
                   d.exercises.length,
                   data.progression.find((s) => s.exercise_id === e.id),
+                  { preferences: data.preferences, history: data.workouts },
                 ),
               ],
             });
@@ -582,20 +574,13 @@ export function Targets({
             onChange={(n) => set('sets', n)}
           />
         </Field>
-        <Field label="Répétitions min.">
-          <RepetitionSelect
-            label="Répétitions minimales"
-            value={e.target.reps_min}
-            onChange={(n) => set('reps_min', n)}
-          />
-        </Field>
-        <Field label="Répétitions max.">
-          <RepetitionSelect
-            label="Répétitions maximales"
-            value={e.target.reps_max}
-            onChange={(n) => set('reps_max', n)}
-          />
-        </Field>
+        <RepGoalFields
+          min={e.target.reps_min}
+          max={e.target.reps_max}
+          onChange={(min, max) =>
+            onChange({ ...e, target: { ...e.target, reps_min: min, reps_max: max } })
+          }
+        />
         <Field label="Charge cible (kg)">
           <NumberField
             label="Charge cible"

@@ -1,4 +1,12 @@
-import type { Exercise, Preferences, Workout, WorkoutExercise, WorkoutSet } from './domain';
+import type {
+  Exercise,
+  Preferences,
+  ProgressionSetting,
+  Workout,
+  WorkoutExercise,
+  WorkoutSet,
+} from './domain';
+import { movementKnowledge } from './training-knowledge';
 
 export interface Suggestion {
   kind: 'increase' | 'reps' | 'hold' | 'fatigue' | 'insufficient' | 'disabled';
@@ -11,6 +19,7 @@ export interface Suggestion {
 export interface ProgressionContext {
   workout: Workout;
   exercises: Exercise[];
+  settings?: ProgressionSetting[];
 }
 type Observation = { workout: Workout; entry: WorkoutExercise; sets: WorkoutSet[] };
 
@@ -103,12 +112,30 @@ function compare(a: Observation, b: Observation): -1 | 0 | 1 | null {
   return up ? 1 : down ? -1 : null;
 }
 
+export function performanceTrend(exerciseId: string, workouts: Workout[], now = Date.now()) {
+  const observations = workouts
+    .filter((w) => w.status === 'completed' && Date.parse(w.started_at) <= now)
+    .toSorted((a, b) => Date.parse(b.started_at) - Date.parse(a.started_at))
+    .filter((w) => w.exercises.some((e) => e.exercise_id === exerciseId))
+    .slice(0, 3)
+    .map((w) => observe(w, exerciseId));
+  const [a, b, c] = observations;
+  if (!a || !b || compare(a, b) === null) return null;
+  return {
+    direction: compare(a, b),
+    repsGain: sameLoads(a, b) ? totalReps(a) - totalReps(b) : null,
+    plateau: !!c && compare(a, b) === 0 && compare(b, c) === 0,
+    repeatedDecline: !!c && compare(a, b) === -1 && compare(b, c) === -1,
+  };
+}
+
 export function recommendation(
   entry: WorkoutExercise,
   workouts: Workout[],
   prefs: Preferences,
   excludeId?: string,
   context?: ProgressionContext,
+  setting?: ProgressionSetting,
 ): Suggestion {
   if (!prefs.recommendations)
     return {
@@ -125,6 +152,24 @@ export function recommendation(
   const insufficient = (
     reason = 'Terminez des séries de travail comparables pour construire une proposition fiable.',
   ): Suggestion => ({ kind: 'insufficient', title: 'Construisez votre historique', reason });
+  const fixed = entry.target.reps_min === entry.target.reps_max;
+  const currentFeedback = context ? entry.feedback : undefined;
+  if (currentFeedback?.pain || currentFeedback?.technique_issue)
+    return {
+      kind: 'hold',
+      title: currentFeedback.pain
+        ? 'Inconfort signalé : adaptez le mouvement'
+        : 'Retrouvez une exécution maîtrisée',
+      reason:
+        'Aucune charge chiffrée n’est proposée avec ce signal. Interrompez le mouvement douloureux ou non maîtrisé ; adaptez l’amplitude ou choisissez une variante confortable. Si l’inconfort persiste, demandez un avis professionnel.',
+    };
+  if (context && entry.sets.some((s) => s.completed && s.reached_failure))
+    return {
+      kind: 'hold',
+      title: 'Échec déclaré sur cet exercice',
+      reason:
+        'Une série de cet exercice vient d’être déclarée à l’échec. Aucune hausse n’est proposée pour les séries restantes ; les séries déjà réalisées restent conservées.',
+    };
   if (entry.target.reps_max > 30)
     return insufficient(
       'Les objectifs dépassent 30 répétitions. Ajustez la fourchette avant de proposer un plan.',
@@ -145,6 +190,13 @@ export function recommendation(
         ? 'La dernière occurrence est incomplète ou répartie dans plusieurs blocs. Elle ne permet pas d’aligner les séries sans ambiguïté.'
         : undefined,
     );
+  if (latest.entry.feedback?.pain || latest.entry.feedback?.technique_issue)
+    return {
+      kind: 'hold',
+      title: 'Vérifiez le mouvement avant de reprendre',
+      reason:
+        'Un inconfort ou une difficulté technique a été déclaré à la dernière occurrence. Confirmez une variante et une amplitude confortables avant de demander une nouvelle charge.',
+    };
   const expected = entry.sets.filter((s) => s.type === 'normal').length || entry.target.sets;
   const sameTargets =
     latest.entry.target.reps_min === entry.target.reps_min &&
@@ -186,15 +238,24 @@ export function recommendation(
     if (!o || !compatible(latest, o)) break;
     history.push(o);
   }
-  const baseline = latest.sets
-    .slice(0, countChanged ? 1 : expected)
-    .map((s) => ({ weight: s.weight, reps: Math.min(30, s.reps) }));
+  const baseline = latest.sets.slice(0, countChanged ? 1 : expected).map((s) => ({
+    weight: s.weight,
+    reps: Math.max(entry.target.reps_min, Math.min(entry.target.reps_max, s.reps)),
+  }));
   const analysis = [
     countChanged
       ? `${latest.sets.length} séries précédentes pour ${expected} prévues : le volume n’est pas comparable. Seul un repère pour la première série est proposé.`
       : `${history.length} séance(s) récente(s) à structure comparable pour cet exercice.`,
     'Échauffements et séries dégressives exclus des performances comparées ; leurs échecs déclarés restent pris en compte. Brouillons exclus de l’historique.',
+    fixed
+      ? `Objectif fixe : ${entry.target.reps_min} répétitions. Il est conservé, même si une nouvelle charge est proposée.`
+      : `Plage retenue : ${entry.target.reps_min}–${entry.target.reps_max} répétitions. Aucun objectif universel n’est imposé.`,
+    `Dernière occurrence il y a ${Math.max(0, Math.floor((cutoff - Date.parse(latest.workout.started_at)) / 864e5))} jour(s). Ce délai ne mesure pas votre récupération.`,
   ];
+  if (prefs.coaching?.limitations)
+    analysis.push(
+      'Des limitations sont déclarées dans votre profil. Le moteur ne déduit ni mobilité ni diagnostic à partir de ce texte ; vérifiez l’adaptation du mouvement.',
+    );
 
   // Compare each other exercise only against itself, never raw kg across movements.
   const recent = completed.filter((w) => Date.parse(w.started_at) >= cutoff - 42 * 864e5);
@@ -280,12 +341,23 @@ export function recommendation(
       ? { weight: plan[0].weight! }
       : {}),
   });
-  if (context && entry.sets.some((s) => s.completed && s.reached_failure))
+  if (
+    currentFeedback?.recovery === 'poor' ||
+    currentFeedback?.effort === 'hard' ||
+    latest.entry.feedback?.recovery === 'poor' ||
+    latest.entry.feedback?.effort === 'hard'
+  )
+    return answer(
+      'hold',
+      'Consolidez selon votre récupération',
+      'Un effort trop difficile ou une récupération insuffisante a été déclaré. Maintenez une base maîtrisée ; envisagez moins de séries ou davantage de récupération selon votre ressenti.',
+    );
+  if (cutoff - Date.parse(latest.workout.started_at) > 28 * 864e5)
     return {
       kind: 'hold',
-      title: 'Échec déclaré sur cet exercice',
+      title: 'Reprenez vos repères après la pause',
       reason:
-        'Une série de cet exercice vient d’être déclarée à l’échec. Aucune hausse n’est proposée pour les séries restantes ; les séries déjà réalisées restent conservées.',
+        'La dernière occurrence date de plus de quatre semaines. Réévaluez une charge maîtrisée pendant la reprise ; aucune hausse ni réduction automatique n’est déduite du temps écoulé.',
       analysis,
     };
   if (history[1] && restChanged(latest, history[1]))
@@ -336,7 +408,7 @@ export function recommendation(
     return answer(
       'hold',
       'Stabilisez la charge',
-      'Les anciens indicateurs d’effort renseignés dépassent vos seuils.',
+      'Les indicateurs d’effort renseignés dépassent vos seuils.',
     );
   if (opening && context && entry.sets.some((s) => s.type === 'normal' && s.completed))
     return {
@@ -361,6 +433,10 @@ export function recommendation(
     );
   const atTop = (o: Observation) =>
     o.entry.technique_ok &&
+    !o.entry.feedback?.pain &&
+    !o.entry.feedback?.technique_issue &&
+    o.entry.feedback?.effort !== 'hard' &&
+    o.entry.feedback?.recovery !== 'poor' &&
     !o.entry.sets.some((s) => s.completed && s.reached_failure) &&
     o.sets.every(
       (s) =>
@@ -369,11 +445,37 @@ export function recommendation(
         !(prefs.min_rir !== null && s.rir !== null && s.rir < prefs.min_rir),
     );
   if (atTop(latest)) {
-    if (!history[1] || !sameLoads(latest, history[1]) || !atTop(history[1]))
+    const confirmations = prefs.coaching?.level === 'advanced' ? 3 : 2;
+    if (
+      history.length < confirmations ||
+      !history
+        .slice(0, confirmations)
+        .every((o) => sameLoads(latest, o) && !restChanged(latest, o) && atTop(o))
+    )
       return answer(
         'hold',
-        'Confirmez le haut de la fourchette',
-        'La dernière occurrence atteint le haut de la fourchette. Confirmez-le sur deux séances à mêmes charges avant de proposer une hausse.',
+        fixed ? 'Confirmez votre objectif fixe' : 'Confirmez le haut de la fourchette',
+        `La cible est atteinte. Confirmez-la sur ${confirmations} séances à mêmes charges avant d’envisager une hausse.`,
+      );
+    if (prefs.coaching?.goal === 'maintenance')
+      return answer(
+        'hold',
+        'Conservez votre objectif d’entretien',
+        'La cible est confirmée. L’entretien ne nécessite pas de rechercher une hausse de charge à chaque validation.',
+      );
+    if (
+      fixed &&
+      (latest.entry.feedback?.recovery !== 'good' ||
+        !(
+          latest.entry.feedback?.effort === 'controlled' ||
+          latest.entry.feedback?.effort === 'easy' ||
+          latest.sets.every((s) => s.rir !== null && s.rir >= (prefs.min_rir ?? 1))
+        ))
+    )
+      return answer(
+        'hold',
+        'Objectif fixe confirmé : vérifiez votre marge',
+        'Votre nombre fixe de répétitions est conservé. Avant de proposer plus lourd, renseignez une récupération bonne et un effort maîtrisé (ou un RIR suffisant). Une absence de données ne prouve pas une marge disponible.',
       );
     if (entry.load_kind === 'bodyweight')
       return answer(
@@ -382,31 +484,48 @@ export function recommendation(
         'Les répétitions sont confirmées. Ajustez votre objectif si nécessaire ; aucune charge corporelle ou lest n’est déduit automatiquement.',
       );
     const assisted = entry.load_kind === 'assisted';
+    const available =
+      (
+        setting ?? context?.settings?.find((s) => s.exercise_id === entry.exercise_id)
+      )?.available_weights?.toSorted((a, b) => a - b) ?? [];
+    const profile = movementKnowledge({
+      name: entry.name,
+      primary_muscle: entry.primary_muscle,
+      equipment: context?.exercises.find((e) => e.id === entry.exercise_id)?.equipment ?? 'Machine',
+    });
+    const limit = profile.isolation ? 0.05 : 0.1;
     const plan = baseline.map((s) => ({
-      weight: assisted ? Math.max(0, s.weight! - entry.increment) : s.weight! + entry.increment,
+      weight: available.length
+        ? ((assisted
+            ? available.findLast((w) => w < s.weight!)
+            : available.find((w) => w > s.weight!)) ?? s.weight)
+        : Math.round(
+            (assisted ? Math.max(0, s.weight! - entry.increment) : s.weight! + entry.increment) *
+              1000,
+          ) / 1000,
       reps: entry.target.reps_min,
     }));
     if (
       plan.some((s, i) => s.weight === baseline[i].weight) ||
       plan.some((s) => s.weight! > 2000) ||
-      (!assisted && baseline.some((s) => entry.increment > s.weight! * 0.1))
+      baseline.some((s, i) => Math.abs(plan[i].weight! - s.weight!) > s.weight! * limit)
     )
       return answer(
         'hold',
         'Ajustez votre incrément',
-        'L’incrément dépasse 10 % d’au moins une charge, la limite de saisie, ou l’assistance minimale est déjà atteinte. Choisissez un pas adapté avant de monter.',
+        `Le prochain palier dépasse ${limit * 100} % d’au moins une charge, la limite de saisie, ou aucun palier disponible ne permet de progresser. Consolidez les répétitions ou choisissez un pas plus petit ; aucun matériel n’est inventé.`,
       );
     return answer(
       'increase',
       assisted ? 'Essayez un peu moins d’assistance' : 'Essayez le prochain palier',
-      'Le haut de la fourchette est confirmé sur deux séances à mêmes charges, sans échec déclaré ni signal de baisse retenu. L’incrément configuré est appliqué à chaque série ; les répétitions repartent de la borne basse.',
+      `La cible est confirmée sur ${confirmations} séances à mêmes charges, technique validée, sans échec déclaré ni signal de baisse retenu. ${available.length ? 'Le prochain poids disponible est utilisé.' : 'L’incrément configuré est utilisé ; les charges disponibles ne sont pas renseignées.'} ${fixed ? 'Votre objectif fixe reste identique.' : 'Les répétitions repartent de votre borne basse.'} ${latest.entry.feedback?.effort ? '' : 'L’absence d’échec déclaré ne mesure pas la marge d’effort : confirmez votre aisance avant d’appliquer.'}`,
       plan,
     );
   }
   if (latest.sets.some((s) => s.reps < entry.target.reps_min))
     return answer(
       'hold',
-      'Retrouvez votre fourchette',
+      fixed ? 'Consolidez votre objectif fixe' : 'Retrouvez votre fourchette',
       'Certaines séries restent sous la borne basse. Une seule séance difficile ne suffit pas à conclure à une régression durable.',
     );
   const plan = baseline.map((s) => ({ ...s }));

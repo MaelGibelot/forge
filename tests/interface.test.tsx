@@ -72,6 +72,7 @@ afterEach(() => {
 describe('parcours des composants privés (DOM, sans service Auth simulé)', () => {
   it('applique le repère 28 × 8 uniquement à la première série sans remplir la série ajoutée', async () => {
     const base = newEntry(catalog[0], 0);
+    base.target = { ...base.target, reps_min: 8, reps_max: 12 };
     const past = {
       ...base,
       technique_ok: false,
@@ -156,6 +157,7 @@ describe('parcours des composants privés (DOM, sans service Auth simulé)', () 
   });
   it('applique un plan seulement aux séries normales restantes sans toucher aux séries réalisées', async () => {
     const base = newEntry(catalog[0], 0);
+    base.target = { ...base.target, reps_min: 8, reps_max: 12 };
     const e: WorkoutExercise = {
       ...base,
       technique_ok: true,
@@ -436,7 +438,7 @@ describe('parcours des composants privés (DOM, sans service Auth simulé)', () 
         .filter((o) => !(o as HTMLOptionElement).disabled)
         .map((o) => o.textContent),
     ).toEqual(Array.from({ length: 30 }, (_, i) => String(i + 1)));
-    expect(screen.queryByLabelText(/RPE|RIR/)).toBeNull();
+    expect(screen.getByLabelText('RIR série 1').closest('details')?.open).toBe(false);
     fireEvent.change(reps, { target: { value: '30' } });
     fireEvent.click(screen.getByRole('button', { name: 'Sauver en brouillon' }));
     await waitFor(() => expect(submitted?.exercises[0].sets[0].reps).toBe(30));

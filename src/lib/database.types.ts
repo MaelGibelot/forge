@@ -70,6 +70,7 @@ export type Database = {
       };
       exercise_progression: {
         Row: {
+          available_weights: number[];
           user_id: string;
           exercise_id: string;
           increment: number;
@@ -77,6 +78,7 @@ export type Database = {
           reps_max: number;
         };
         Insert: {
+          available_weights?: number[];
           user_id: string;
           exercise_id: string;
           increment?: number;
@@ -84,6 +86,7 @@ export type Database = {
           reps_max?: number;
         };
         Update: {
+          available_weights?: number[];
           user_id?: string;
           exercise_id?: string;
           increment?: number;
@@ -437,6 +440,7 @@ export type Database = {
       };
       user_preferences: {
         Row: {
+          coaching: Json;
           user_id: string;
           recommendations: boolean;
           history_count: number;
@@ -444,6 +448,7 @@ export type Database = {
           min_rir: number | null;
         };
         Insert: {
+          coaching?: Json;
           user_id: string;
           recommendations?: boolean;
           history_count?: number;
@@ -451,6 +456,7 @@ export type Database = {
           min_rir?: number | null;
         };
         Update: {
+          coaching?: Json;
           user_id?: string;
           recommendations?: boolean;
           history_count?: number;
@@ -469,6 +475,7 @@ export type Database = {
       };
       workout_exercises: {
         Row: {
+          feedback: Json;
           id: string;
           user_id: string;
           session_id: string;
@@ -491,6 +498,7 @@ export type Database = {
           notes: string;
         };
         Insert: {
+          feedback?: Json;
           id: string;
           user_id: string;
           session_id: string;
@@ -513,6 +521,7 @@ export type Database = {
           notes?: string;
         };
         Update: {
+          feedback?: Json;
           id?: string;
           user_id?: string;
           session_id?: string;

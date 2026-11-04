@@ -34,8 +34,8 @@ function session(e = exercise(), index = 1): Workout {
     ...startWorkout(),
     exercises: [e],
     status: 'completed',
-    started_at: `2026-10-${String(index).padStart(2, '0')}T10:00:00Z`,
-    finished_at: `2026-10-${String(index).padStart(2, '0')}T11:00:00Z`,
+    started_at: new Date(Date.now() - (15 - index) * 864e5).toISOString(),
+    finished_at: new Date(Date.now() - (15 - index) * 864e5 + 3600000).toISOString(),
   };
 }
 describe('mesures', () => {

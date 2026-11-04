@@ -15,7 +15,9 @@ export async function GET() {
         .select('id,date,weight')
         .order('date', { ascending: false })
         .limit(1000),
-      db.from('exercise_progression').select('exercise_id,increment,reps_min,reps_max'),
+      db
+        .from('exercise_progression')
+        .select('exercise_id,increment,reps_min,reps_max,available_weights'),
     ]);
     results.forEach((r) => dbCheck(r.error));
     const [profile, prefs, exercises, programs, workouts, bodyweights, progression] = results;

@@ -40,6 +40,7 @@ export function duplicateWorkout(w: Workout): Workout {
       id: crypto.randomUUID(),
       group_id: e.group_id ? groupMap.get(e.group_id)! : null,
       technique_ok: false,
+      feedback: undefined,
       sets: e.sets.map((s) => ({
         ...s,
         id: crypto.randomUUID(),

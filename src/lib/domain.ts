@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { resolveRepGoal, latestGoal, movementKnowledge } from './training-knowledge.ts';
 
 export const muscles = [
   'Pectoraux',
@@ -120,6 +121,14 @@ export type Program = z.infer<typeof programSchema>;
 export const workoutExerciseSchema = entrySchema.extend({
   sets: z.array(setSchema).max(100),
   technique_ok: z.boolean(),
+  feedback: z
+    .object({
+      effort: z.enum(['easy', 'controlled', 'hard']).nullable().default(null),
+      recovery: z.enum(['good', 'poor']).nullable().default(null),
+      pain: z.boolean().default(false),
+      technique_issue: z.boolean().default(false),
+    })
+    .optional(),
 });
 export type WorkoutExercise = z.infer<typeof workoutExerciseSchema>;
 export const workoutSchema = z
@@ -191,6 +200,20 @@ export const preferencesSchema = z.object({
   history_count: z.number().int().min(2).max(20),
   max_rpe: optionalNumber(1, 10),
   min_rir: optionalNumber(0, 10),
+  coaching: z
+    .object({
+      goal: z
+        .enum(['hypertrophy', 'strength', 'endurance', 'maintenance'])
+        .nullable()
+        .default(null),
+      level: z.enum(['beginner', 'intermediate', 'advanced']).nullable().default(null),
+      sessions_per_week: z.number().int().min(1).max(14).nullable().default(null),
+      session_minutes: z.number().int().min(10).max(300).nullable().default(null),
+      preferences: z.string().max(1000).default(''),
+      limitations: z.string().max(1000).default(''),
+      volume_preference: z.enum(['minimal', 'balanced', 'more']).default('balanced'),
+    })
+    .optional(),
 });
 export type Preferences = z.infer<typeof preferencesSchema>;
 export const progressionSchema = z
@@ -199,6 +222,7 @@ export const progressionSchema = z
     increment: z.number().positive().max(100),
     reps_min: z.number().int().min(1).max(100),
     reps_max: z.number().int().min(1).max(100),
+    available_weights: z.array(z.number().min(0).max(2000)).max(100).optional(),
   })
   .refine((s) => s.reps_max >= s.reps_min, 'Fourchette invalide.');
 export type ProgressionSetting = z.infer<typeof progressionSchema>;
@@ -236,7 +260,14 @@ export function newEntry(
   e: Exercise,
   position: number,
   setting?: ProgressionSetting,
+  context?: { preferences?: Preferences; history?: Workout[] },
 ): ProgramExercise {
+  const { reps_min, reps_max } = resolveRepGoal({
+    exercise: e,
+    setting,
+    previous: latestGoal(context?.history ?? [], e.id),
+    preferences: context?.preferences,
+  });
   return {
     id: crypto.randomUUID(),
     exercise_id: e.id,
@@ -248,17 +279,20 @@ export function newEntry(
     group_id: null,
     target: {
       ...targetDefaults,
+      reps_min,
+      reps_max,
       ...(e.load_kind === 'cardio'
         ? { sets: 1, reps_min: 1, reps_max: 1, rest_seconds: null }
         : {}),
-      ...(setting ? { reps_min: setting.reps_min, reps_max: setting.reps_max } : {}),
     },
     notes: '',
     increment:
       setting?.increment ??
-      (['Quadriceps', 'Ischio-jambiers', 'Fessiers', 'Mollets'].includes(e.primary_muscle)
-        ? 5
-        : 2.5),
+      (movementKnowledge(e).isolation
+        ? 1
+        : ['Quadriceps', 'Ischio-jambiers', 'Fessiers', 'Mollets'].includes(e.primary_muscle)
+          ? 5
+          : 2.5),
   };
 }
 export function newSet(
@@ -282,7 +316,11 @@ export function newSet(
     distance_km: null,
   };
 }
-export function startWorkout(day?: ProgramDay, previous: Workout[] = []): Workout {
+export function startWorkout(
+  day?: ProgramDay,
+  previous: Workout[] = [],
+  settings: ProgressionSetting[] = [],
+): Workout {
   const groupMap = new Map(day?.groups.map((g) => [g.id, crypto.randomUUID()]) ?? []);
   return {
     id: crypto.randomUUID(),
@@ -298,14 +336,20 @@ export function startWorkout(day?: ProgramDay, previous: Workout[] = []): Workou
     exercises:
       day?.exercises.map((e) => {
         const last = previousExercise(previous, e.exercise_id);
+        const setting = settings.find((s) => s.exercise_id === e.exercise_id);
+        const target = {
+          ...e.target,
+          ...(setting ? { reps_min: setting.reps_min, reps_max: setting.reps_max } : {}),
+        };
         return {
           ...e,
           id: crypto.randomUUID(),
           group_id: e.group_id ? groupMap.get(e.group_id)! : null,
-          target: { ...e.target },
+          target,
+          increment: setting?.increment ?? e.increment,
           technique_ok: false,
           sets: Array.from({ length: e.target.sets }, (_, i) => ({
-            ...newSet(i, e.target, e.load_kind),
+            ...newSet(i, target, e.load_kind),
             weight:
               e.load_kind === 'cardio'
                 ? null

@@ -1,5 +1,7 @@
 # Propositions d’entraînement
 
+Depuis le 4 novembre, les objectifs fixes, plages personnalisées, paliers disponibles et signaux déclarés suivent les règles détaillées dans [COACHING.md](COACHING.md), qui précise les adaptations aux règles initiales ci-dessous.
+
 Le moteur utilise des règles explicites et affiche les éléments retenus dans « Pourquoi cette proposition ? ». Ces seuils sont des choix de produit conservateurs, pas un modèle médical ou une prédiction validée de fatigue.
 
 ## Données utilisées
@@ -11,7 +13,7 @@ Le moteur utilise des règles explicites et affiche les éléments retenus dans 
 
 ## Plan par série
 
-Une répétition supplémentaire au total est proposée lorsque la fourchette est partiellement atteinte. Les charges différentes selon les séries sont conservées. Pour proposer le palier suivant, il faut deux occurrences consécutives au haut de la fourchette, aux mêmes charges, technique validée et sans échec déclaré ni ancien seuil RPE/RIR dépassé. Les répétitions repartent alors de la borne basse. L’incrément est celui configuré ; une augmentation supérieure à 10 % d’une charge ou dépassant 2 000 kg est suspendue et demande d’ajuster le réglage, sans inventer le matériel disponible.
+Une répétition supplémentaire au total est proposée lorsque la plage est partiellement atteinte. Les charges différentes selon les séries sont conservées. Pour proposer le palier suivant, il faut deux occurrences consécutives au haut de la plage (trois si niveau avancé), aux mêmes charges, technique validée et sans échec déclaré ni seuil RPE/RIR dépassé. Les répétitions repartent alors de la borne basse choisie ; une cible fixe reste identique. L’incrément est celui configuré ou le prochain palier disponible ; un écart dépassant 5 % pour l’isolation identifiée, 10 % sinon, ou une charge dépassant 2 000 kg, suspend la hausse.
 
 Une montée de charge pendant la dernière occurrence peut donner un repère pour **la première série uniquement**, même si le nombre de séries a changé. Exemple : 26 kg × 10 puis 28 kg × 10, objectif 8–12 → première série proposée à 28 kg × 8. La montée doit être continue, au plus de 10 % depuis la première charge, toutes les séries dans la fourchette et la meilleure charge réussie au moins deux répétitions au-dessus de la borne basse. Ce seuil est un choix de produit, pas une estimation de répétitions en réserve. Les signaux de prudence (échec, anciens seuils d’effort, baisse retenue, repos changé) restent prioritaires. Ce repère réutilise une charge déjà réalisée ; il ne nécessite pas les deux confirmations réservées à un nouveau palier. Il ne suppose pas que la technique a été validée. Aucun plan n’est extrapolé aux séries suivantes ou ajoutées ; leurs champs restent inchangés. Une fois une série de travail réalisée, le repère de départ est retiré. Le changement de volume ne devient pas une comparaison de performance globale.
 

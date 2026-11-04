@@ -2,6 +2,15 @@
 
 L’application enregistre une séance depuis l’interface vers une route HTTP Next.js, puis vers une RPC transactionnelle Supabase et des tables PostgreSQL normalisées. La réponse serveur détermine l’état de sauvegarde de l’interface.
 
+## Évolution du 4 novembre : objectifs et coaching individuel
+
+- 140 tests Vitest réussis. Cas fixes 10/9/8 et 10/10/9 à 70 kg, hausse fixe conservant 10, plage double progression, effort/récupération absents ou défavorables, pause longue, débutant/avancé/entretien, assistance et paliers disponibles, isolation et incréments disproportionnés, objectifs priorisés, modèles conservant la cible avec performances vidées, conseils factuels, échecs prioritaires, volumes directs et exclusion du futur/brouillon. Cas Leg curl distinct du curl de coude.
+- PostgreSQL embarqué : migrations réelles, persistance profil/paliers/ressenti via la RPC, cible fixe inchangée, rejet des valeurs invalides et isolation entre deux rôles authentifiés. Contrôles précédents de transactions, révisions, séries et RLS conservés.
+- Navigateur local : objectifs fixes/plages, maintien des champs, retrait de plan après inconfort, profil et matériel enregistrés dans l’API fictive, accueil, à 390 et 1440 px. Aucun débordement ni erreur JavaScript. Captures `docs/previews/coaching-*-test.png`. Données fictives et routes interceptées : ne prouve pas un parcours Auth privé réel. Aperçu temporaire retiré de la compilation publiée.
+- ESLint, TypeScript et compilation production réussis. Nettoyage des types générés de l’aperçu supprimé avant la compilation finale.
+- Supabase hébergé : migration `20261104142727_personalized_coaching`, trois colonnes additives présentes et non nulles ; RLS maintenue, RPC `SECURITY INVOKER`, droit d’exécution refusé à anon et conservé pour authenticated. Diagnostics de sécurité inchangés : deux informations sur les tables privées d’identifiants et avertissement préexistant de protection des mots de passe compromis désactivée. Aucun utilisateur ni performance réelle modifié.
+- Principes scientifiques et seuils de produit distingués dans [COACHING.md](COACHING.md). Profil libre non interprété comme un diagnostic ou une mesure de mobilité ; aucune promesse de plan biomécanique complet.
+
 ## Ajustement du 2 novembre : charge de départ déjà réussie
 
 - Après 26 kg × 10 puis 28 kg × 10, une proposition limitée à la première série donne 28 kg × 8 (fourchette 8–12), y compris si une troisième série a été ajoutée. Le volume différent reste exclu des comparaisons de tendance ; les autres séries restent inchangées.

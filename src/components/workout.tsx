@@ -54,6 +54,8 @@ import { SaveTemplateButton } from './session-templates';
 import { useWorkoutSave } from '@/lib/use-workout-save';
 import { WorkoutSummary } from './workout-summary';
 import { ProgressionDetails } from './progression-details';
+import { RepGoalFields } from './rep-goal-fields';
+import { movementKnowledge } from '@/lib/training-knowledge';
 export function WorkoutPage({ id }: { id: string }) {
   const [workout, setWorkout] = useState<Workout | null>(null),
     [error, setError] = useState<string | null>(null);
@@ -276,7 +278,7 @@ function WorkoutEditor({ initial }: { initial: Workout }) {
                   onClick={async () => {
                     setBusy(true);
                     try {
-                      const next = workoutFromTemplate(templateFromWorkout(w));
+                      const next = workoutFromTemplate(templateFromWorkout(w), data.progression);
                       const r = await api<{ revision: number }>('/api/workouts', {
                         method: 'POST',
                         body: JSON.stringify(next),
@@ -501,7 +503,7 @@ function WorkoutEditor({ initial }: { initial: Workout }) {
               history.filter((h) => h.started_at < w.started_at),
               data.preferences,
               w.id,
-              { workout: w, exercises: data.exercises },
+              { workout: w, exercises: data.exercises, settings: data.progression },
             )
           : null;
         const set = (s: WorkoutSet) =>
@@ -600,6 +602,42 @@ function WorkoutEditor({ initial }: { initial: Workout }) {
                 </div>
               )}
             </div>
+            {edit && e.load_kind !== 'cardio' && (
+              <details className="notes-details">
+                <summary>
+                  Objectif :{' '}
+                  {e.target.reps_min === e.target.reps_max
+                    ? `${e.target.reps_min} répétitions fixes`
+                    : `${e.target.reps_min}–${e.target.reps_max} répétitions`}{' '}
+                  · modifier
+                </summary>
+                <div className="field-grid">
+                  <RepGoalFields
+                    min={e.target.reps_min}
+                    max={e.target.reps_max}
+                    onChange={(min, max) =>
+                      updateExercise({
+                        ...e,
+                        target: { ...e.target, reps_min: min, reps_max: max },
+                      })
+                    }
+                  />
+                  <Field label="Incrément (kg)">
+                    <NumberField
+                      label={`Incrément ${e.name}`}
+                      value={e.increment}
+                      min={0.1}
+                      max={100}
+                      onChange={(n) => updateExercise({ ...e, increment: n ?? e.increment })}
+                    />
+                  </Field>
+                </div>
+                <p className="muted">
+                  Cet objectif est prioritaire pour cette séance. Le changer conserve les séries
+                  déjà saisies. Un repère initial reste modifiable.
+                </p>
+              </details>
+            )}
             {edit && suggestion && suggestion.kind !== 'disabled' && !ignored.includes(e.id) && (
               <div className="suggestion">
                 <Lightbulb size={17} />
@@ -835,6 +873,136 @@ function WorkoutEditor({ initial }: { initial: Workout }) {
                     </label>
                   </div>
                   <details className="notes-details">
+                    <summary>Ressenti et récupération (facultatif)</summary>
+                    <div className="field-grid">
+                      <Field label="Effort sur cet exercice">
+                        <select
+                          value={e.feedback?.effort ?? ''}
+                          onChange={(x) =>
+                            updateExercise({
+                              ...e,
+                              feedback: {
+                                ...{
+                                  effort: null,
+                                  recovery: null,
+                                  pain: false,
+                                  technique_issue: false,
+                                },
+                                ...e.feedback,
+                                effort: (x.target.value as 'easy' | 'controlled' | 'hard') || null,
+                              },
+                            })
+                          }
+                        >
+                          <option value="">Non renseigné</option>
+                          <option value="easy">Trop facile</option>
+                          <option value="controlled">Maîtrisé, avec de la marge</option>
+                          <option value="hard">Trop difficile</option>
+                        </select>
+                      </Field>
+                      <Field label="Récupération ressentie">
+                        <select
+                          value={e.feedback?.recovery ?? ''}
+                          onChange={(x) =>
+                            updateExercise({
+                              ...e,
+                              feedback: {
+                                ...{
+                                  effort: null,
+                                  recovery: null,
+                                  pain: false,
+                                  technique_issue: false,
+                                },
+                                ...e.feedback,
+                                recovery: (x.target.value as 'good' | 'poor') || null,
+                              },
+                            })
+                          }
+                        >
+                          <option value="">Non renseignée</option>
+                          <option value="good">Bonne</option>
+                          <option value="poor">Insuffisante</option>
+                        </select>
+                      </Field>
+                    </div>
+                    <label className="check-label">
+                      <input
+                        type="checkbox"
+                        checked={e.feedback?.pain ?? false}
+                        onChange={(x) =>
+                          updateExercise({
+                            ...e,
+                            feedback: {
+                              effort: null,
+                              recovery: null,
+                              technique_issue: false,
+                              ...e.feedback,
+                              pain: x.target.checked,
+                            },
+                          })
+                        }
+                      />
+                      Douleur ou inconfort sur cet exercice
+                    </label>
+                    <label className="check-label">
+                      <input
+                        type="checkbox"
+                        checked={e.feedback?.technique_issue ?? false}
+                        onChange={(x) =>
+                          updateExercise({
+                            ...e,
+                            feedback: {
+                              effort: null,
+                              recovery: null,
+                              pain: false,
+                              ...e.feedback,
+                              technique_issue: x.target.checked,
+                            },
+                          })
+                        }
+                      />
+                      Difficulté technique ou perte de contrôle
+                    </label>
+                    <p className="muted">
+                      {
+                        movementKnowledge({
+                          name: e.name,
+                          primary_muscle: e.primary_muscle,
+                          equipment:
+                            data.exercises.find((x) => x.id === e.exercise_id)?.equipment ??
+                            'Machine',
+                        }).cue
+                      }
+                    </p>
+                    <details>
+                      <summary>RIR / RPE par série (facultatif)</summary>
+                      {e.sets.map((s, i) => (
+                        <div className="grid-2" key={s.id}>
+                          <Field label={`RIR série ${i + 1}`}>
+                            <NumberField
+                              label={`RIR série ${i + 1}`}
+                              value={s.rir}
+                              nullable
+                              min={0}
+                              max={10}
+                              onChange={(n) => set({ ...s, rir: n })}
+                            />
+                          </Field>
+                          <Field label={`RPE série ${i + 1}`}>
+                            <NumberField
+                              label={`RPE série ${i + 1}`}
+                              value={s.rpe}
+                              nullable
+                              min={1}
+                              max={10}
+                              onChange={(n) => set({ ...s, rpe: n })}
+                            />
+                          </Field>
+                        </div>
+                      ))}
+                    </details>
+                  </details>
+                  <details className="notes-details">
                     <summary>Notes par série</summary>
                     {e.sets.map((s, i) => (
                       <Field key={s.id} label={`Série ${i + 1}`}>
@@ -933,6 +1101,7 @@ function WorkoutEditor({ initial }: { initial: Workout }) {
               exercise,
               w.exercises.length,
               data.progression.find((s) => s.exercise_id === exercise.id),
+              { preferences: data.preferences, history: history ?? [] },
             );
             const last = previousExercise(history ?? [], exercise.id, w.id);
             editor.change({

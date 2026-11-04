@@ -1,19 +1,17 @@
 'use client';
+import { RepGoalFields } from './rep-goal-fields';
+import {
+  resolveRepGoal,
+  latestGoal,
+  indicativeRange,
+  movementKnowledge,
+  goalLabels,
+} from '@/lib/training-knowledge';
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { Plus, Search, ArrowUpRight, BookOpen } from 'lucide-react';
 import { useData, allWorkouts } from './store';
-import {
-  Button,
-  PageTitle,
-  Modal,
-  Field,
-  NumberField,
-  RepetitionSelect,
-  ErrorBox,
-  Empty,
-  api,
-} from './ui';
+import { Button, PageTitle, Modal, Field, NumberField, ErrorBox, Empty, api } from './ui';
 import { Anatomy } from './anatomy';
 import {
   muscles,
@@ -328,8 +326,9 @@ export function ExerciseDetail({ id }: { id: string }) {
   const [increment, setIncrement] = useState(
       setting?.increment ?? (exercise ? newEntry(exercise, 0).increment : 2.5),
     ),
-    [min, setMin] = useState(setting?.reps_min ?? 8),
-    [max, setMax] = useState(setting?.reps_max ?? 12);
+    [customMin, setMin] = useState<number | null>(setting?.reps_min ?? null),
+    [customMax, setMax] = useState<number | null>(setting?.reps_max ?? null),
+    [weights, setWeights] = useState(setting?.available_weights?.join(', ') ?? '');
   useEffect(() => {
     allWorkouts(undefined, id)
       .then(setWorkouts)
@@ -342,6 +341,20 @@ export function ExerciseDetail({ id }: { id: string }) {
         description="Cet exercice est inaccessible ou n’existe plus."
       />
     );
+  const resolved = resolveRepGoal({
+    exercise,
+    setting,
+    previous: latestGoal(workouts ?? [], id),
+    preferences: data.preferences,
+  });
+  const min = customMin ?? resolved.reps_min,
+    max = customMax ?? resolved.reps_max;
+  const available_weights = weights.trim()
+    ? weights
+        .trim()
+        .split(/[\s,;]+/)
+        .map(Number)
+    : [];
   const entry: WorkoutExercise = {
     ...newEntry(exercise, 0),
     target: { ...newEntry(exercise, 0).target, reps_min: min, reps_max: max },
@@ -349,7 +362,15 @@ export function ExerciseDetail({ id }: { id: string }) {
     technique_ok: false,
     sets: [],
   };
-  const rec = workouts ? recommendation(entry, workouts, data.preferences) : null;
+  const rec = workouts
+    ? recommendation(entry, workouts, data.preferences, undefined, undefined, {
+        exercise_id: id,
+        increment,
+        reps_min: min,
+        reps_max: max,
+        available_weights,
+      })
+    : null;
   const pr = records(workouts ?? [])[0];
   return (
     <>
@@ -386,6 +407,7 @@ export function ExerciseDetail({ id }: { id: string }) {
         <div className="stack">
           <section className="card">
             <h2>Bien exécuter le mouvement</h2>
+            <p className="muted">{movementKnowledge(exercise).cue}</p>
             <ol>
               {exercise.instructions.map((step, i) => (
                 <li key={i}>{step}</li>
@@ -431,16 +453,47 @@ export function ExerciseDetail({ id }: { id: string }) {
                     onChange={(n) => setIncrement(n ?? 2.5)}
                   />
                 </Field>
-                <Field label="Répétitions min.">
-                  <RepetitionSelect label="Minimum" value={min} onChange={setMin} />
-                </Field>
-                <Field label="Répétitions max.">
-                  <RepetitionSelect label="Maximum" value={max} onChange={setMax} />
-                </Field>
+                <RepGoalFields
+                  min={min}
+                  max={max}
+                  onChange={(a, b) => {
+                    setMin(a);
+                    setMax(b);
+                  }}
+                />
               </div>
+              <Field
+                label="Charges disponibles (kg)"
+                hint="Facultatif. Séparez par des virgules : 6, 7, 8, 9. Décimales avec un point. Poids par haltère si votre saisie est par haltère."
+              >
+                <input
+                  value={weights}
+                  maxLength={1500}
+                  onChange={(e) => setWeights(e.target.value)}
+                />
+              </Field>
+              <p className="muted">
+                {resolved.source}. Repère facultatif{' '}
+                {data.preferences.coaching?.goal
+                  ? goalLabels[data.preferences.coaching.goal]
+                  : 'hypertrophie (objectif non renseigné)'}{' '}
+                : {indicativeRange(exercise, data.preferences.coaching?.goal).join('–')}{' '}
+                répétitions.
+              </p>
+              <Button
+                variant="ghost"
+                onClick={() => {
+                  const [a, b] = indicativeRange(exercise, data.preferences.coaching?.goal);
+                  setMin(a);
+                  setMax(b);
+                }}
+              >
+                Utiliser ce repère
+              </Button>
               <p className="muted" style={{ fontSize: 11 }}>
-                Ces réglages préremplissent les nouveaux ajouts aux programmes. Les objectifs d’une
-                séance existante restent modifiables dans son programme.
+                Après enregistrement, votre objectif personnel prime sur le programme au démarrage
+                d’une nouvelle séance. Une cible modifiée dans la séance reste prioritaire. Les
+                séances existantes ne sont pas réécrites.
               </p>
               <ErrorBox message={error} />
               {saved && (
@@ -462,6 +515,7 @@ export function ExerciseDetail({ id }: { id: string }) {
                         increment,
                         reps_min: min,
                         reps_max: max,
+                        available_weights,
                       }),
                     });
                     await reload();

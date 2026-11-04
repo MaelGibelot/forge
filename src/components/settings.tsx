@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation';
 import { Moon, Sun, Monitor, Save, LockKeyhole, Trash2 } from 'lucide-react';
 import { useData } from './store';
 import { Button, PageTitle, Field, NumberField, ErrorBox, api } from './ui';
+import { goalLabels } from '@/lib/training-knowledge';
+import { preferencesSchema, type Preferences } from '@/lib/domain';
 export function Settings() {
   const { data, reload } = useData();
   const { theme, setTheme } = useTheme();
@@ -14,6 +16,9 @@ export function Settings() {
     [success, setSuccess] = useState(''),
     [busy, setBusy] = useState(false),
     [deleting, setDeleting] = useState(false);
+  const coaching = preferencesSchema.shape.coaching.parse(p.coaching ?? {})!;
+  const coach = (change: Partial<NonNullable<Preferences['coaching']>>) =>
+    setP({ ...p, coaching: { ...coaching, ...change } });
   async function run(job: () => Promise<unknown>, message: string) {
     setBusy(true);
     setError(null);
@@ -53,6 +58,92 @@ export function Settings() {
               />
             </Field>
             <h3>Recommandations de progression</h3>
+            <div className="grid-2">
+              <Field label="Objectif principal">
+                <select
+                  aria-label="Objectif principal"
+                  value={coaching.goal ?? ''}
+                  onChange={(e) =>
+                    coach({ goal: (e.target.value as typeof coaching.goal) || null })
+                  }
+                >
+                  <option value="">Non renseigné</option>
+                  {Object.entries(goalLabels).map(([v, l]) => (
+                    <option key={v} value={v}>
+                      {l}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+              <Field label="Niveau de pratique">
+                <select
+                  aria-label="Niveau de pratique"
+                  value={coaching.level ?? ''}
+                  onChange={(e) =>
+                    coach({ level: (e.target.value as typeof coaching.level) || null })
+                  }
+                >
+                  <option value="">Non renseigné</option>
+                  <option value="beginner">Débutant</option>
+                  <option value="intermediate">Intermédiaire</option>
+                  <option value="advanced">Avancé</option>
+                </select>
+              </Field>
+              <Field label="Séances souhaitées par semaine">
+                <NumberField
+                  label="Séances souhaitées par semaine"
+                  value={coaching.sessions_per_week}
+                  min={1}
+                  max={14}
+                  nullable
+                  onChange={(n) => coach({ sessions_per_week: n })}
+                />
+              </Field>
+              <Field label="Durée habituelle (min)">
+                <NumberField
+                  label="Durée habituelle"
+                  value={coaching.session_minutes}
+                  min={10}
+                  max={300}
+                  nullable
+                  onChange={(n) => coach({ session_minutes: n })}
+                />
+              </Field>
+            </div>
+            <Field label="Préférence de volume">
+              <select
+                aria-label="Préférence de volume"
+                value={coaching.volume_preference}
+                onChange={(e) =>
+                  coach({ volume_preference: e.target.value as typeof coaching.volume_preference })
+                }
+              >
+                <option value="minimal">Volume minimal à consolider</option>
+                <option value="balanced">Équilibré</option>
+                <option value="more">Davantage de volume si récupéré</option>
+              </select>
+            </Field>
+            <details>
+              <summary>Préférences et contraintes personnelles (facultatif)</summary>
+              <Field label="Préférences, matériel et récupération">
+                <textarea
+                  maxLength={1000}
+                  value={coaching.preferences}
+                  onChange={(e) => coach({ preferences: e.target.value })}
+                />
+              </Field>
+              <Field label="Mobilité, inconforts et difficultés techniques">
+                <textarea
+                  maxLength={1000}
+                  value={coaching.limitations}
+                  onChange={(e) => coach({ limitations: e.target.value })}
+                />
+              </Field>
+              <p className="muted">
+                Ces notes vous servent de repère. Signalez aussi l’inconfort sur l’exercice concerné
+                pour suspendre sa proposition de charge.
+              </p>
+            </details>
             <label className="check-label">
               <input
                 type="checkbox"

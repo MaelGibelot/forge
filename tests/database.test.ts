@@ -48,6 +48,74 @@ afterAll(async () => {
   await db.close();
 });
 describe('PostgreSQL embarqué : migrations, transactions et RLS', () => {
+  it('persiste le profil, les paliers et le ressenti privé sans modifier les objectifs fixes', async () => {
+    const base = newEntry(catalog[0], 0);
+    const e = {
+      ...base,
+      target: { ...base.target, reps_min: 10, reps_max: 10 },
+      technique_ok: true,
+      feedback: { effort: 'controlled', recovery: 'good', pain: false, technique_issue: true },
+      sets: [{ ...newSet(0, base.target), weight: 70, reps: 10, completed: true }],
+    };
+    const w = { ...startWorkout(), exercises: [e] };
+    await asUser(alice);
+    await db.query(
+      'insert into public.user_preferences(user_id,coaching) values($1,$2) on conflict(user_id) do update set coaching=excluded.coaching',
+      [alice, JSON.stringify({ goal: 'strength', level: 'advanced' })],
+    );
+    await db.query(
+      'insert into public.exercise_progression(user_id,exercise_id,available_weights) values($1,$2,$3) on conflict(user_id,exercise_id) do update set available_weights=excluded.available_weights',
+      [alice, e.exercise_id, [70, 71, 72.5]],
+    );
+    await rpc('save_workout', w);
+    const read = await db.query<{ w: (typeof w)[] }>(
+      'select public.read_workouts(0,30,null,$1) w',
+      [w.id],
+    );
+    expect(read.rows[0].w[0].exercises[0].feedback).toEqual(e.feedback);
+    expect(read.rows[0].w[0].exercises[0].target.reps_max).toBe(10);
+    expect(
+      (
+        await db.query<{ coaching: { goal: string } }>(
+          'select coaching from public.user_preferences where user_id=$1',
+          [alice],
+        )
+      ).rows[0].coaching.goal,
+    ).toBe('strength');
+    await asUser(bob);
+    expect(
+      (await db.query('select feedback from public.workout_exercises where id=$1', [e.id])).rows,
+    ).toHaveLength(0);
+    expect(
+      (await db.query('select coaching from public.user_preferences where user_id=$1', [alice]))
+        .rows,
+    ).toHaveLength(0);
+    expect(
+      (
+        await db.query(
+          "update public.user_preferences set coaching='{}' where user_id=$1 returning user_id",
+          [alice],
+        )
+      ).rows,
+    ).toHaveLength(0);
+    await asUser(alice);
+    await expect(
+      db.query(
+        "update public.workout_exercises set feedback='{" + '"pain":"oui"' + "}' where id=$1",
+        [e.id],
+      ),
+    ).rejects.toThrow();
+    await expect(
+      db.query('update public.exercise_progression set available_weights=$1 where exercise_id=$2', [
+        [-1],
+        e.exercise_id,
+      ]),
+    ).rejects.toThrow();
+    await db.exec('reset role');
+    await db.query('delete from public.workout_sessions where id=$1', [w.id]);
+    await db.query('delete from public.exercise_progression where user_id=$1', [alice]);
+    await db.query('delete from public.user_preferences where user_id=$1', [alice]);
+  });
   it('persiste l’échec, isole les comptes et refuse les échecs sur des séries non effectuées ou cardio', async () => {
     const entry = newEntry(catalog[0], 0);
     const w = {

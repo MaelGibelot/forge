@@ -7,6 +7,7 @@ import { useData, allWorkouts } from './store';
 import { Button, PageTitle, Empty, ErrorBox, api } from './ui';
 import { type Workout, type ProgramDay, startWorkout } from '@/lib/domain';
 import { workoutFromTemplate, type WorkoutTemplate } from '@/lib/templates';
+import { coachAdvice } from '@/lib/coach';
 import {
   workoutVolume,
   records,
@@ -33,7 +34,9 @@ export function useStartWorkout() {
           router.push(`/seances/${existing.id}`);
           return;
         }
-        const w = template ? workoutFromTemplate(template) : startWorkout(day, data.workouts);
+        const w = template
+          ? workoutFromTemplate(template, data.progression)
+          : startWorkout(day, data.workouts, data.progression);
         const r = await api<{ revision: number }>('/api/workouts', {
           method: 'POST',
           body: JSON.stringify(w),
@@ -76,12 +79,26 @@ export function Dashboard() {
   const launch = useStartWorkout();
   const [workouts, setWorkouts] = useState<Workout[] | null>(null),
     [error, setError] = useState<string | null>(null);
+  const [dismissed, setDismissed] = useState<string[]>([]);
+  const [asOf, setAsOf] = useState(() => Date.now());
   useEffect(() => {
-    allWorkouts(new Date(Date.now() - 30 * 864e5).toISOString())
-      .then(setWorkouts)
+    allWorkouts(new Date(Date.now() - 42 * 864e5).toISOString())
+      .then((rows) => {
+        setAsOf(Date.now());
+        setWorkouts(rows);
+      })
       .catch((e) => setError(e.message));
   }, [data.workouts]);
-  const completed = workouts?.filter((w) => w.status === 'completed') ?? [];
+  const completed =
+    workouts?.filter(
+      (w) =>
+        w.status === 'completed' &&
+        Date.parse(w.started_at) >= asOf - 30 * 864e5 &&
+        Date.parse(w.started_at) <= asOf,
+    ) ?? [];
+  const advice = workouts
+    ? coachAdvice(data, workouts, asOf).filter((c) => !dismissed.includes(c.id))
+    : [];
   const volume = completed.reduce((v, w) => v + workoutVolume(w), 0);
   const sets = completed
     .flatMap((w) => w.exercises.flatMap((e) => e.sets))
@@ -108,6 +125,50 @@ export function Dashboard() {
         }
       />
       <ErrorBox message={launch.error ?? error} />
+      {data.preferences.recommendations && (
+        <section
+          className="card stack"
+          style={{ marginBottom: 22 }}
+          aria-label="Conseils de ton coach"
+        >
+          <h2>Conseils de ton coach</h2>
+          {!workouts ? (
+            <p>Analyse de vos séances…</p>
+          ) : advice.length === 0 ? (
+            <p className="muted">
+              Conseils masqués pour cette visite. Les nouveaux résultats renouvelleront l’analyse.
+            </p>
+          ) : (
+            advice.map((c, i) => (
+              <article
+                key={c.id}
+                className="stack"
+                style={{
+                  borderTop: i ? '1px solid var(--border)' : undefined,
+                  paddingTop: i ? 16 : 0,
+                }}
+              >
+                <div className="flex between">
+                  <h3>{c.title}</h3>
+                  {c.priority >= 8 && (
+                    <span className="badge badge-orange">À vérifier avant de progresser</span>
+                  )}
+                </div>
+                <p className="muted">{c.fact}</p>
+                <p>{c.advice}</p>
+                <div className="actions">
+                  <Link className="text-link" href={c.href}>
+                    {c.action} ↗
+                  </Link>
+                  <Button variant="ghost" onClick={() => setDismissed([...dismissed, c.id])}>
+                    Masquer ce conseil
+                  </Button>
+                </div>
+              </article>
+            ))
+          )}
+        </section>
+      )}
       <section className="hero-card">
         <div>
           <div className="eyebrow">

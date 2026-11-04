@@ -124,8 +124,20 @@ export function Statistics() {
     { seconds: 0, distance: 0 },
   );
   const latest = completed.flatMap((w) => w.exercises).find((e) => e.exercise_id === exerciseId);
+  const personalGoal = data.progression.find((s) => s.exercise_id === exerciseId);
   const entry: WorkoutExercise | undefined =
-    latest ??
+    (latest
+      ? {
+          ...latest,
+          target: {
+            ...latest.target,
+            ...(personalGoal
+              ? { reps_min: personalGoal.reps_min, reps_max: personalGoal.reps_max }
+              : {}),
+          },
+          increment: personalGoal?.increment ?? latest.increment,
+        }
+      : undefined) ??
     (exercise
       ? {
           ...newEntry(
@@ -138,7 +150,16 @@ export function Statistics() {
         }
       : undefined);
   const suggestion =
-    entry && workouts ? recommendation(entry, workouts, data.preferences) : undefined;
+    entry && workouts
+      ? recommendation(
+          entry,
+          workouts,
+          data.preferences,
+          undefined,
+          undefined,
+          data.progression.find((s) => s.exercise_id === entry.exercise_id),
+        )
+      : undefined;
   return (
     <>
       <PageTitle
