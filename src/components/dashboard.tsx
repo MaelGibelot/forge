@@ -125,50 +125,6 @@ export function Dashboard() {
         }
       />
       <ErrorBox message={launch.error ?? error} />
-      {data.preferences.recommendations && (
-        <section
-          className="card stack"
-          style={{ marginBottom: 22 }}
-          aria-label="Conseils de ton coach"
-        >
-          <h2>Conseils de ton coach</h2>
-          {!workouts ? (
-            <p>Analyse de vos séances…</p>
-          ) : advice.length === 0 ? (
-            <p className="muted">
-              Conseils masqués pour cette visite. Les nouveaux résultats renouvelleront l’analyse.
-            </p>
-          ) : (
-            advice.map((c, i) => (
-              <article
-                key={c.id}
-                className="stack"
-                style={{
-                  borderTop: i ? '1px solid var(--border)' : undefined,
-                  paddingTop: i ? 16 : 0,
-                }}
-              >
-                <div className="flex between">
-                  <h3>{c.title}</h3>
-                  {c.priority >= 8 && (
-                    <span className="badge badge-orange">À vérifier avant de progresser</span>
-                  )}
-                </div>
-                <p className="muted">{c.fact}</p>
-                <p>{c.advice}</p>
-                <div className="actions">
-                  <Link className="text-link" href={c.href}>
-                    {c.action} ↗
-                  </Link>
-                  <Button variant="ghost" onClick={() => setDismissed([...dismissed, c.id])}>
-                    Masquer ce conseil
-                  </Button>
-                </div>
-              </article>
-            ))
-          )}
-        </section>
-      )}
       <section className="hero-card">
         <div>
           <div className="eyebrow">
@@ -320,6 +276,50 @@ export function Dashboard() {
           )}
         </section>
       </div>
+      {data.preferences.recommendations && (
+        <section
+          className="card stack"
+          style={{ marginTop: 22 }}
+          aria-label="Conseils de ton coach"
+        >
+          <h2>Conseils de ton coach</h2>
+          {!workouts ? (
+            <p>Analyse de vos séances…</p>
+          ) : advice.length === 0 ? (
+            <p className="muted">
+              Conseils masqués pour cette visite. Les nouveaux résultats renouvelleront l’analyse.
+            </p>
+          ) : (
+            advice.map((c, i) => (
+              <article
+                key={c.id}
+                className="stack"
+                style={{
+                  borderTop: i ? '1px solid var(--border)' : undefined,
+                  paddingTop: i ? 16 : 0,
+                }}
+              >
+                <div className="flex between">
+                  <h3>{c.title}</h3>
+                  {c.priority >= 8 && (
+                    <span className="badge badge-orange">À vérifier avant de progresser</span>
+                  )}
+                </div>
+                <p className="muted">{c.fact}</p>
+                <p>{c.advice}</p>
+                <div className="actions">
+                  <Link className="text-link" href={c.href}>
+                    {c.action} ↗
+                  </Link>
+                  <Button variant="ghost" onClick={() => setDismissed([...dismissed, c.id])}>
+                    Masquer ce conseil
+                  </Button>
+                </div>
+              </article>
+            ))
+          )}
+        </section>
+      )}
     </>
   );
 }
