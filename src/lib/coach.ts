@@ -1,6 +1,7 @@
 import type { AppData, Workout, WorkoutExercise } from './domain';
 import { recommendation, performanceTrend } from './progression';
 import { resolveRepGoal } from './training-knowledge';
+import { isStrength } from './climbing';
 
 export interface CoachAdvice {
   id: string;
@@ -28,7 +29,7 @@ export function coachAdvice(
   const latest = new Map<string, WorkoutExercise>();
   for (const w of recent)
     for (const e of w.exercises)
-      if (e.load_kind !== 'cardio' && !latest.has(e.exercise_id)) latest.set(e.exercise_id, e);
+      if (isStrength(e.load_kind) && !latest.has(e.exercise_id)) latest.set(e.exercise_id, e);
   const cards: CoachAdvice[] = [];
   for (const [id, e] of latest) {
     const setting = data.progression.find((s) => s.exercise_id === id);
@@ -102,7 +103,7 @@ export function coachAdvice(
     for (const w of recent.filter(
       (w) => Date.parse(w.started_at) >= from && Date.parse(w.started_at) < until,
     )) {
-      for (const e of w.exercises.filter((e) => e.load_kind !== 'cardio')) {
+      for (const e of w.exercises.filter((e) => isStrength(e.load_kind))) {
         const n = e.sets.filter((s) => s.type === 'normal' && s.completed && s.reps > 0).length;
         totals.set(e.primary_muscle, (totals.get(e.primary_muscle) ?? 0) + n);
       }

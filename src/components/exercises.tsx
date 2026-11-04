@@ -23,6 +23,8 @@ import {
 } from '@/lib/domain';
 import { records, recommendation, number } from '@/lib/metrics';
 import { ProgressionDetails } from './progression-details';
+import { isClimbing, isStrength } from '@/lib/climbing';
+import { ClimbingHistory } from './climbing-history';
 export function ExercisePicker({
   onSelect,
   onClose,
@@ -43,7 +45,9 @@ export function ExercisePicker({
       (!collection ||
         (collection === 'technogym'
           ? e.category.startsWith('Technogym ·')
-          : e.load_kind === 'cardio')) &&
+          : collection === 'sports'
+            ? isClimbing(e.load_kind)
+            : e.load_kind === 'cardio')) &&
       (!muscle || e.primary_muscle === muscle),
   );
   return (
@@ -57,6 +61,7 @@ export function ExercisePicker({
           <option value="">Toutes les collections</option>
           <option value="technogym">Technogym</option>
           <option value="cardio">Cardio</option>
+          <option value="sports">Sports · Escalade</option>
         </select>
         <input
           aria-label="Rechercher un exercice"
@@ -127,7 +132,9 @@ export function ExerciseLibrary() {
         !collection ||
         (collection === 'technogym'
           ? e.category.startsWith('Technogym ·')
-          : e.load_kind === 'cardio'),
+          : collection === 'sports'
+            ? isClimbing(e.load_kind)
+            : e.load_kind === 'cardio'),
     );
   return (
     <>
@@ -154,6 +161,7 @@ export function ExerciseLibrary() {
           <option value="">Toutes les collections</option>
           <option value="technogym">Technogym</option>
           <option value="cardio">Cardio</option>
+          <option value="sports">Sports · Escalade</option>
         </select>
         <div className="search-input">
           <Search size={18} />
@@ -301,6 +309,8 @@ function CustomExercise({
             <option value="bodyweight">Poids du corps</option>
             <option value="assisted">Assistance (kg)</option>
             <option value="cardio">Cardio (durée et distance)</option>
+            <option value="climbing">Escalade — voies (cotations)</option>
+            <option value="bouldering">Escalade — bloc (cotations)</option>
           </select>
         </Field>
         <Field label="Description">
@@ -384,9 +394,18 @@ export function ExerciseDetail({ id }: { id: string }) {
       />
       <div className="exercise-details">
         <div className="stack">
-          <section className="card">
-            <Anatomy primary={exercise.primary_muscle} secondary={exercise.secondary_muscles} />
-          </section>
+          {!isClimbing(exercise.load_kind) && (
+            <section className="card">
+              <Anatomy primary={exercise.primary_muscle} secondary={exercise.secondary_muscles} />
+            </section>
+          )}
+          {isClimbing(exercise.load_kind) && (
+            <ClimbingHistory
+              workouts={workouts ?? []}
+              exerciseId={id}
+              kind={exercise.load_kind as 'climbing' | 'bouldering'}
+            />
+          )}
           {pr && (
             <section className="card">
               <div className="eyebrow">VOS RECORDS PERSONNELS</div>
@@ -407,7 +426,9 @@ export function ExerciseDetail({ id }: { id: string }) {
         <div className="stack">
           <section className="card">
             <h2>Bien exécuter le mouvement</h2>
-            <p className="muted">{movementKnowledge(exercise).cue}</p>
+            {isStrength(exercise.load_kind) && (
+              <p className="muted">{movementKnowledge(exercise).cue}</p>
+            )}
             <ol>
               {exercise.instructions.map((step, i) => (
                 <li key={i}>{step}</li>
@@ -427,13 +448,15 @@ export function ExerciseDetail({ id }: { id: string }) {
             )}
             {exercise.load_kind !== 'external' && (
               <div className="setup-notice" style={{ marginTop: 18 }}>
-                {exercise.load_kind === 'cardio'
-                  ? 'La durée et la distance sont suivies séparément du volume de musculation et des records de charge.'
-                  : 'Les répétitions sont suivies séparément. Le poids du corps et l’assistance sont exclus du volume externe et du 1RM estimé.'}
+                {isClimbing(exercise.load_kind)
+                  ? 'Les cotations et réussites sont suivies séparément des charges, du cardio et des séries musculaires.'
+                  : exercise.load_kind === 'cardio'
+                    ? 'La durée et la distance sont suivies séparément du volume de musculation et des records de charge.'
+                    : 'Les répétitions sont suivies séparément. Le poids du corps et l’assistance sont exclus du volume externe et du 1RM estimé.'}
               </div>
             )}
           </section>
-          {exercise.load_kind !== 'cardio' && (
+          {isStrength(exercise.load_kind) && (
             <section className="card stack">
               <div>
                 <div className="eyebrow">VOTRE PROCHAIN PAS</div>

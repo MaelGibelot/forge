@@ -1,6 +1,7 @@
 import type { Exercise, Muscle, Equipment } from './domain';
 import { technogymCatalog } from './technogym.ts';
 import { variantCatalog } from './variants.ts';
+import { sportCatalog } from './climbing.ts';
 
 // Textes originaux et schémas originaux : aucun média tiers n'est redistribué.
 // La classification décrit la sollicitation générale, pas un % d'activation.
@@ -497,4 +498,9 @@ const originalCatalog: Exercise[] = rows.map(
     supports_1rm: rm ?? false,
   }),
 );
-export const catalog: Exercise[] = [...originalCatalog, ...technogymCatalog, ...variantCatalog];
+export const catalog: Exercise[] = [
+  ...originalCatalog,
+  ...technogymCatalog,
+  ...variantCatalog,
+  ...sportCatalog,
+];

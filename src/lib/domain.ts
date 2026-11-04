@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { resolveRepGoal, latestGoal, movementKnowledge } from './training-knowledge.ts';
+import { climbingGrades, isClimbing } from './climbing.ts';
 
 export const muscles = [
   'Pectoraux',
@@ -38,7 +39,7 @@ export interface Exercise {
   instructions: string[];
   tips: string;
   mistakes: string;
-  load_kind: 'external' | 'bodyweight' | 'assisted' | 'cardio';
+  load_kind: 'external' | 'bodyweight' | 'assisted' | 'cardio' | 'climbing' | 'bouldering';
   supports_1rm: boolean;
 }
 const uuid = z.uuid();
@@ -58,6 +59,18 @@ export const setSchema = z.object({
   notes: z.string().max(1000),
   duration_seconds: z.number().int().min(0).max(86400).nullable().optional(),
   distance_km: optionalNumber(0, 10000).optional(),
+  climbing: z
+    .object({
+      grade: z
+        .string()
+        .refine((g) => climbingGrades.includes(g), 'Cotation inconnue.')
+        .nullable(),
+      attempts: z.number().int().min(1).max(100),
+      result: z.enum(['attempt', 'sent']),
+      style: z.enum(['lead', 'toprope']).nullable(),
+    })
+    .nullable()
+    .optional(),
 });
 export type WorkoutSet = z.infer<typeof setSchema>;
 export const targetSchema = z
@@ -80,7 +93,7 @@ const entrySchema = z.object({
   exercise_id: uuid,
   name: z.string().min(1).max(120),
   primary_muscle: z.enum(muscles),
-  load_kind: z.enum(['external', 'bodyweight', 'assisted', 'cardio']),
+  load_kind: z.enum(['external', 'bodyweight', 'assisted', 'cardio', 'climbing', 'bouldering']),
   supports_1rm: z.boolean(),
   position: z.number().int().min(0).max(100),
   group_id: uuid.nullable(),
@@ -163,7 +176,11 @@ export const workoutSchema = z
           e.sets.some(
             (s) =>
               s.completed &&
-              (e.load_kind === 'cardio' ? (s.duration_seconds ?? 0) > 0 : s.reps > 0),
+              (e.load_kind === 'cardio'
+                ? (s.duration_seconds ?? 0) > 0
+                : isClimbing(e.load_kind)
+                  ? !!s.climbing?.grade
+                  : s.reps > 0),
           ),
         )),
     'Une séance terminée doit contenir au moins une série réalisée et des dates cohérentes.',
@@ -172,17 +189,33 @@ export const workoutSchema = z
     (w) =>
       w.exercises.every((e) =>
         e.sets.every((s) =>
-          e.load_kind === 'cardio'
-            ? s.reps === 0 &&
+          isClimbing(e.load_kind)
+            ? s.climbing != null &&
+              s.reps === 0 &&
               s.weight === null &&
+              s.rpe === null &&
               s.rir === null &&
               !s.reached_failure &&
-              s.type !== 'drop' &&
-              (!s.completed || (s.duration_seconds ?? 0) > 0)
-            : s.duration_seconds == null && s.distance_km == null && (!s.completed || s.reps > 0),
+              s.type === 'normal' &&
+              s.duration_seconds == null &&
+              s.distance_km == null &&
+              (!s.completed || !!s.climbing?.grade) &&
+              (e.load_kind !== 'bouldering' || s.climbing?.style == null)
+            : e.load_kind === 'cardio'
+              ? s.reps === 0 &&
+                s.climbing == null &&
+                s.weight === null &&
+                s.rir === null &&
+                !s.reached_failure &&
+                s.type !== 'drop' &&
+                (!s.completed || (s.duration_seconds ?? 0) > 0)
+              : s.climbing == null &&
+                s.duration_seconds == null &&
+                s.distance_km == null &&
+                (!s.completed || s.reps > 0),
         ),
       ),
-    'Une série effectuée doit contenir au moins une répétition ; un intervalle cardio doit avoir une durée positive, sans charge ni répétitions.',
+    'Saisie incohérente : répétitions pour la musculation, durée pour le cardio, cotation pour un passage d’escalade enregistré.',
   )
   .refine(
     (w) => w.exercises.every((e) => e.sets.every((s) => !s.reached_failure || s.completed)),
@@ -281,7 +314,7 @@ export function newEntry(
       ...targetDefaults,
       reps_min,
       reps_max,
-      ...(e.load_kind === 'cardio'
+      ...(e.load_kind === 'cardio' || isClimbing(e.load_kind)
         ? { sets: 1, reps_min: 1, reps_max: 1, rest_seconds: null }
         : {}),
     },
@@ -303,8 +336,8 @@ export function newSet(
   return {
     id: crypto.randomUUID(),
     position,
-    weight: kind === 'cardio' ? null : target.weight,
-    reps: kind === 'cardio' ? 0 : target.reps_min,
+    weight: kind === 'cardio' || isClimbing(kind) ? null : target.weight,
+    reps: kind === 'cardio' || isClimbing(kind) ? 0 : target.reps_min,
     rpe: null,
     rir: null,
     rest_seconds: null,
@@ -314,6 +347,9 @@ export function newSet(
     notes: '',
     duration_seconds: null,
     distance_km: null,
+    ...(isClimbing(kind)
+      ? { climbing: { grade: null, attempts: 1, result: 'attempt' as const, style: null } }
+      : {}),
   };
 }
 export function startWorkout(
@@ -351,7 +387,7 @@ export function startWorkout(
           sets: Array.from({ length: e.target.sets }, (_, i) => ({
             ...newSet(i, target, e.load_kind),
             weight:
-              e.load_kind === 'cardio'
+              e.load_kind === 'cardio' || isClimbing(e.load_kind)
                 ? null
                 : (e.target.weight ??
                   last?.sets.filter((s) => s.type === 'normal' && s.completed)[i]?.weight ??

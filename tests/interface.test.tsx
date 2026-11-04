@@ -22,6 +22,7 @@ import {
   type WorkoutExercise,
 } from '../src/lib/domain';
 import { catalog } from '../src/lib/catalog';
+import { sportCatalog } from '../src/lib/climbing';
 const state = vi.hoisted(() => ({
   push: vi.fn(),
   replace: vi.fn(),
@@ -70,6 +71,80 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 describe('parcours des composants privés (DOM, sans service Auth simulé)', () => {
+  it('affiche la cotation réelle dans les données du graphique escalade', async () => {
+    const e = newEntry(sportCatalog[0], 0);
+    const w: Workout = {
+      ...startWorkout(),
+      status: 'completed',
+      finished_at: new Date().toISOString(),
+      exercises: [
+        {
+          ...e,
+          technique_ok: false,
+          sets: [
+            {
+              ...newSet(0, e.target, 'climbing'),
+              completed: true,
+              climbing: { grade: '6b+', result: 'sent', attempts: 2, style: 'lead' },
+            },
+          ],
+        },
+      ],
+    };
+    state.allWorkouts.mockResolvedValue([w]);
+    state.api.mockResolvedValue({ started_at: w.started_at });
+    render(<Statistics />);
+    fireEvent.change(screen.getByRole('combobox', { name: 'Exercice analysé' }), {
+      target: { value: e.exercise_id },
+    });
+    expect(await screen.findByText('6b+')).toBeTruthy();
+    expect((screen.getByRole('combobox', { name: 'Indicateur' }) as HTMLSelectElement).value).toBe(
+      'grade',
+    );
+  });
+  it('choisit une cotation et enregistre séparément un bloc tenté et une voie réussie', async () => {
+    const w: Workout = {
+      ...startWorkout(),
+      revision: 1,
+      exercises: sportCatalog.map((exercise, i) => {
+        const e = newEntry(exercise, i);
+        return { ...e, technique_ok: false, sets: [newSet(0, e.target, e.load_kind)] };
+      }),
+    };
+    let submitted: Workout | undefined;
+    state.api.mockImplementation(async (_url: string, options?: RequestInit) => {
+      if (options?.method === 'POST') {
+        submitted = workoutSchema.parse(JSON.parse(String(options.body)));
+        return { revision: 2 };
+      }
+      return [w];
+    });
+    render(<WorkoutPage id={w.id} />);
+    const grades = await screen.findAllByRole('combobox', { name: 'Cotation passage 1' });
+    fireEvent.change(grades[0], { target: { value: '6b+' } });
+    fireEvent.change(grades[1], { target: { value: '6a' } });
+    fireEvent.change(screen.getAllByRole('combobox', { name: 'Résultat passage 1' })[0], {
+      target: { value: 'sent' },
+    });
+    fireEvent.change(screen.getAllByRole('spinbutton', { name: 'Essais passage 1' })[1], {
+      target: { value: '3' },
+    });
+    for (const checkbox of screen.getAllByRole('checkbox', { name: 'Passage 1 enregistré' }))
+      fireEvent.click(checkbox);
+    expect(screen.queryByRole('spinbutton', { name: 'Charge série 1' })).toBeNull();
+    expect(screen.queryByRole('checkbox', { name: 'À l’échec série 1' })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Sauver en brouillon' }));
+    await waitFor(() => expect(submitted?.exercises[1].sets[0].completed).toBe(true));
+    expect(submitted!.exercises[0].sets[0].climbing).toMatchObject({
+      grade: '6b+',
+      result: 'sent',
+    });
+    expect(submitted!.exercises[1].sets[0].climbing).toMatchObject({
+      grade: '6a',
+      result: 'attempt',
+      attempts: 3,
+    });
+  });
   it('applique le repère 28 × 8 uniquement à la première série sans remplir la série ajoutée', async () => {
     const base = newEntry(catalog[0], 0);
     base.target = { ...base.target, reps_min: 8, reps_max: 12 };

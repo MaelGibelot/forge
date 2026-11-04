@@ -1,4 +1,5 @@
 import type { Program, Workout } from './domain';
+import { isClimbing } from './climbing';
 export function duplicateProgram(p: Program): Program {
   return {
     ...p,
@@ -49,6 +50,9 @@ export function duplicateWorkout(w: Workout): Workout {
         rest_seconds: null,
         rpe: null,
         rir: null,
+        climbing: isClimbing(e.load_kind)
+          ? { grade: null, attempts: 1, result: 'attempt' as const, style: null }
+          : s.climbing,
         duration_seconds: e.load_kind === 'cardio' ? null : s.duration_seconds,
         distance_km: e.load_kind === 'cardio' ? null : s.distance_km,
       })),

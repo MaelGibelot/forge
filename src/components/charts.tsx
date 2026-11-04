@@ -12,6 +12,7 @@ import {
   Legend,
 } from 'recharts';
 import { shortDate, number } from '@/lib/metrics';
+import { climbingGrades, gradeLabel } from '@/lib/climbing';
 export function MuscleChart({
   rows,
 }: {
@@ -62,9 +63,11 @@ export function MuscleChart({
 export function ProgressChart({
   rows,
   unit = 'kg',
+  gradeKind,
 }: {
   rows: { date: string; value: number | null }[];
   unit?: string;
+  gradeKind?: 'climbing' | 'bouldering';
 }) {
   return (
     <div
@@ -84,6 +87,15 @@ export function ProgressChart({
             minTickGap={30}
           />
           <YAxis
+            allowDecimals={!gradeKind}
+            tickFormatter={
+              gradeKind
+                ? (v) =>
+                    climbingGrades[Math.round(Number(v))]
+                      ? gradeLabel(climbingGrades[Math.round(Number(v))], gradeKind)
+                      : ''
+                : undefined
+            }
             tick={{ fill: 'var(--muted)', fontSize: 10 }}
             axisLine={false}
             tickLine={false}
@@ -92,7 +104,12 @@ export function ProgressChart({
           />
           <Tooltip
             labelFormatter={(v) => shortDate(String(v))}
-            formatter={(v) => [`${number(Number(v), 2)} ${unit}`, 'Performance']}
+            formatter={(v) => [
+              gradeKind
+                ? gradeLabel(climbingGrades[Math.round(Number(v))], gradeKind)
+                : `${number(Number(v), 2)} ${unit}`,
+              'Performance',
+            ]}
             contentStyle={{
               background: 'var(--panel)',
               border: '1px solid var(--border)',
@@ -103,7 +120,7 @@ export function ProgressChart({
           />
           <Line
             name="Performance"
-            type="monotone"
+            type={gradeKind ? 'stepAfter' : 'monotone'}
             dataKey="value"
             stroke="var(--accent)"
             strokeWidth={2.5}

@@ -1,5 +1,6 @@
 'use client';
 import { RepGoalFields } from './rep-goal-fields';
+import { isClimbing } from '@/lib/climbing';
 import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -542,6 +543,19 @@ export function Targets({
 }) {
   const set = (key: keyof ProgramExercise['target'], n: number | null) =>
     onChange({ ...e, target: { ...e.target, [key]: n } });
+  if (isClimbing(e.load_kind))
+    return (
+      <Field label="Passages prévus">
+        <NumberField
+          label="Nombre de passages d’escalade"
+          min={1}
+          max={30}
+          step={1}
+          value={e.target.sets}
+          onChange={(n) => set('sets', n ?? 1)}
+        />
+      </Field>
+    );
   if (e.load_kind === 'cardio')
     return (
       <div className="stack">

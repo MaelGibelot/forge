@@ -5,6 +5,7 @@ import {
   type WorkoutExercise,
   type WorkoutSet,
 } from './domain';
+import { isStrength } from './climbing';
 
 export function weeklyFrequency(
   workouts: Workout[],
@@ -34,7 +35,7 @@ export function muscleSeries(workouts: Workout[], exercises: Exercise[], warmup 
   const secondary = new Map(muscles.map((m) => [m, 0]));
   for (const w of workouts) {
     for (const e of w.exercises) {
-      if (e.load_kind === 'cardio') continue;
+      if (!isStrength(e.load_kind)) continue;
       const count = e.sets.filter((s) => eligible(s, warmup)).length;
       direct.set(e.primary_muscle, (direct.get(e.primary_muscle) ?? 0) + count);
       for (const m of new Set(catalog.get(e.exercise_id)?.secondary_muscles ?? [])) {
@@ -52,6 +53,7 @@ export function eligible(s: WorkoutSet, includeWarmup = false) {
   return (
     s.completed &&
     s.duration_seconds == null &&
+    s.climbing == null &&
     s.reps > 0 &&
     Number.isFinite(s.reps) &&
     s.reps <= 500 &&
@@ -98,7 +100,7 @@ export function exerciseFrequency(workouts: Workout[]) {
     if (w.status !== 'completed') continue;
     const ids = new Set(
       w.exercises
-        .filter((e) => e.load_kind !== 'cardio' && e.sets.some((s) => eligible(s)))
+        .filter((e) => isStrength(e.load_kind) && e.sets.some((s) => eligible(s)))
         .map((e) => e.exercise_id),
     );
     for (const id of ids) counts.set(id, (counts.get(id) ?? 0) + 1);

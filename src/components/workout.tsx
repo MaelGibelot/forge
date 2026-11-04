@@ -56,6 +56,8 @@ import { WorkoutSummary } from './workout-summary';
 import { ProgressionDetails } from './progression-details';
 import { RepGoalFields } from './rep-goal-fields';
 import { movementKnowledge } from '@/lib/training-knowledge';
+import { isClimbing, isStrength } from '@/lib/climbing';
+import { ClimbingPassages } from './climbing-passages';
 export function WorkoutPage({ id }: { id: string }) {
   const [workout, setWorkout] = useState<Workout | null>(null),
     [error, setError] = useState<string | null>(null);
@@ -262,7 +264,7 @@ function WorkoutEditor({ initial }: { initial: Workout }) {
       <PageTitle
         eyebrow={`${shortDate(w.started_at).toUpperCase()} · ${w.status === 'completed' ? 'SÉANCE TERMINÉE' : w.status === 'draft' ? 'BROUILLON' : 'SÉANCE EN COURS'}`}
         title={w.name}
-        description={`${w.exercises.length} exercices · ${done}/${total} séries / intervalles effectués · ${number(workoutVolume(w))} kg de volume externe${cardioTotals(w).seconds ? ` · ${duration(cardioTotals(w).seconds)} de cardio` : ''}`}
+        description={`${w.exercises.length} activités · ${done}/${total} séries / intervalles / passages enregistrés · ${number(workoutVolume(w))} kg de volume externe${cardioTotals(w).seconds ? ` · ${duration(cardioTotals(w).seconds)} de cardio` : ''}`}
         actions={
           <>
             {!edit && (
@@ -540,7 +542,9 @@ function WorkoutEditor({ initial }: { initial: Workout }) {
                   )}
                 </div>
                 <p>
-                  {e.load_kind === 'cardio' ? (
+                  {isClimbing(e.load_kind) ? (
+                    `${e.sets.length} ${e.load_kind === 'bouldering' ? 'bloc(s)' : 'voie(s)'} · cotations et essais`
+                  ) : e.load_kind === 'cardio' ? (
                     `${e.target.sets} intervalle(s) cardio · durée et distance`
                   ) : (
                     <>
@@ -602,7 +606,7 @@ function WorkoutEditor({ initial }: { initial: Workout }) {
                 </div>
               )}
             </div>
-            {edit && e.load_kind !== 'cardio' && (
+            {edit && isStrength(e.load_kind) && (
               <details className="notes-details">
                 <summary>
                   Objectif :{' '}
@@ -696,7 +700,9 @@ function WorkoutEditor({ initial }: { initial: Workout }) {
               </div>
             )}
             <fieldset disabled={!edit || busy} style={{ border: 0, padding: 0, minWidth: 0 }}>
-              {e.load_kind === 'cardio' ? (
+              {isClimbing(e.load_kind) ? (
+                <ClimbingPassages exercise={e} onChange={updateExercise} edit={edit} />
+              ) : e.load_kind === 'cardio' ? (
                 <CardioIntervals exercise={e} onChange={updateExercise} edit={edit} />
               ) : (
                 <>
@@ -1074,14 +1080,16 @@ function WorkoutEditor({ initial }: { initial: Workout }) {
             placeholder="Comment s’est passée votre séance ?"
           />
         </Field>
-        <p className="muted" style={{ fontSize: 11 }}>
-          <span id="failure-hint">
-            À l’échec : cochez si vous ne pouviez plus effectuer une répétition complète. Cocher
-            valide aussi la série. Une case non cochée signifie qu’aucun échec n’est déclaré.
-          </span>{' '}
-          Le repos est saisi manuellement, sans chronomètre. * En superset, utilisez le repos par
-          tour en haut de page ; un repos par série reste distinct.
-        </p>
+        {w.exercises.some((e) => isStrength(e.load_kind)) && (
+          <p className="muted" style={{ fontSize: 11 }}>
+            <span id="failure-hint">
+              À l’échec : cochez si vous ne pouviez plus effectuer une répétition complète. Cocher
+              valide aussi la série. Une case non cochée signifie qu’aucun échec n’est déclaré.
+            </span>{' '}
+            Le repos est saisi manuellement, sans chronomètre. * En superset, utilisez le repos par
+            tour en haut de page ; un repos par série reste distinct.
+          </p>
+        )}
       </section>
       {edit && w.status !== 'completed' && (
         <div className="mobile-workout-finish">

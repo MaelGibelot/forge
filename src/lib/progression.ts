@@ -7,6 +7,7 @@ import type {
   WorkoutSet,
 } from './domain';
 import { movementKnowledge } from './training-knowledge';
+import { isClimbing, isStrength } from './climbing';
 
 export interface Suggestion {
   kind: 'increase' | 'reps' | 'hold' | 'fatigue' | 'insufficient' | 'disabled';
@@ -28,7 +29,7 @@ function observe(workout: Workout, id: string): Observation | null {
   // Never interpret two blocks of the same movement as two separate training sessions.
   if (entries.length !== 1) return null;
   const entry = entries[0];
-  if (entry.load_kind === 'cardio') return null;
+  if (!isStrength(entry.load_kind)) return null;
   const normal = entry.sets.filter((s) => s.type === 'normal');
   if (
     !normal.length ||
@@ -137,6 +138,12 @@ export function recommendation(
   context?: ProgressionContext,
   setting?: ProgressionSetting,
 ): Suggestion {
+  if (isClimbing(entry.load_kind))
+    return {
+      kind: 'disabled',
+      title: 'Suivi escalade',
+      reason: 'Cotations, essais et réussites sont suivis séparément des charges de musculation.',
+    };
   if (!prefs.recommendations)
     return {
       kind: 'disabled',
@@ -262,7 +269,7 @@ export function recommendation(
   const ids = new Set(
     recent.flatMap((w) =>
       w.exercises
-        .filter((e) => e.exercise_id !== entry.exercise_id && e.load_kind !== 'cardio')
+        .filter((e) => e.exercise_id !== entry.exercise_id && isStrength(e.load_kind))
         .map((e) => e.exercise_id),
     ),
   );
@@ -299,7 +306,7 @@ export function recommendation(
       (e) =>
         e.position < entry.position &&
         e.exercise_id !== entry.exercise_id &&
-        e.load_kind !== 'cardio',
+        isStrength(e.load_kind),
     )) {
       const overlap = [
         e.primary_muscle,

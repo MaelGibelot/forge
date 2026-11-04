@@ -3,6 +3,7 @@ import { useState } from 'react';
 import dynamic from 'next/dynamic';
 import { MuscleActivity } from './anatomy';
 import type { Exercise, Workout } from '@/lib/domain';
+import { climbingTotals, gradeLabel, isStrength } from '@/lib/climbing';
 import {
   cardioTotals,
   duration,
@@ -27,10 +28,12 @@ export function WorkoutSummary({
   const [warmup, setWarmup] = useState(false);
   const { direct, secondary } = muscleSeries([workout], exercises, warmup);
   const sets = workout.exercises
-    .filter((e) => e.load_kind !== 'cardio')
+    .filter((e) => isStrength(e.load_kind))
     .flatMap((e) => e.sets)
     .filter((s) => eligible(s, warmup));
   const cardio = cardioTotals(workout, warmup);
+  const climbing = climbingTotals([workout], 'climbing'),
+    blocks = climbingTotals([workout], 'bouldering');
   const hasDistance = workout.exercises.some(
     (e) =>
       e.load_kind === 'cardio' &&
@@ -50,7 +53,7 @@ export function WorkoutSummary({
       <div className="flex between">
         <div>
           <h2>Bilan de la séance</h2>
-          <p className="muted">Uniquement les séries et intervalles validés de cette séance.</p>
+          <p className="muted">Séries, intervalles et passages enregistrés de cette séance.</p>
         </div>
         <label className="check-label">
           <input type="checkbox" checked={warmup} onChange={(e) => setWarmup(e.target.checked)} />
@@ -62,6 +65,18 @@ export function WorkoutSummary({
           ['Séries réalisées', number(sets.length)],
           ['Répétitions', number(sets.reduce((n, s) => n + s.reps, 0))],
           ['Volume externe', `${number(workoutVolume(workout, warmup))} kg`],
+          ...(climbing.count
+            ? [
+                ['Voies réussies / travaillées', `${climbing.sent} / ${climbing.count}`],
+                ['Meilleure voie réussie', gradeLabel(climbing.highest, 'climbing')],
+              ]
+            : []),
+          ...(blocks.count
+            ? [
+                ['Blocs réussis / travaillés', `${blocks.sent} / ${blocks.count}`],
+                ['Meilleur bloc réussi', gradeLabel(blocks.highest, 'bouldering')],
+              ]
+            : []),
           ...(cardio.seconds
             ? [
                 ['Durée cardio', duration(cardio.seconds)],
@@ -81,8 +96,8 @@ export function WorkoutSummary({
       <section className="card" aria-label="Répartition musculaire de la séance">
         <h3>Répartition des séries par groupe musculaire</h3>
         <p className="muted" style={{ fontSize: 12, marginTop: 8 }}>
-          Séries directes et sollicitations indirectes comptées séparément. Le cardio n’ajoute pas
-          de séries musculaires.
+          Séries directes et sollicitations indirectes comptées séparément. Le cardio et l’escalade
+          n’ajoutent pas de séries musculaires.
         </p>
         {rows.length ? (
           <MuscleChart rows={rows} />

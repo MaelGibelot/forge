@@ -10,6 +10,7 @@ import {
   type Preferences,
 } from './domain.ts';
 import { indicativeRange, latestGoal } from './training-knowledge.ts';
+import { isClimbing } from './climbing.ts';
 
 const templateEntry = z
   .object({
@@ -17,7 +18,7 @@ const templateEntry = z
     exercise_id: z.uuid(),
     name: z.string().min(1).max(120),
     primary_muscle: z.enum(muscles),
-    load_kind: z.enum(['external', 'bodyweight', 'assisted', 'cardio']),
+    load_kind: z.enum(['external', 'bodyweight', 'assisted', 'cardio', 'climbing', 'bouldering']),
     supports_1rm: z.boolean(),
     position: z.number().int().min(0).max(100),
     group_id: z.uuid().nullable(),
@@ -119,7 +120,7 @@ export function workoutFromTemplate(
         technique_ok: false,
         sets: e.sets.map((type, i) => ({
           ...newSet(i, target, e.load_kind),
-          type,
+          type: isClimbing(e.load_kind) ? 'normal' : type,
           weight: null,
           reps: 0,
         })),

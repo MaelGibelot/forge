@@ -7,6 +7,7 @@ import { useData, allWorkouts } from './store';
 import { PageTitle, Empty, ErrorBox, NumberField, Button, api } from './ui';
 import { MuscleActivity } from './anatomy';
 import { ProgressionDetails } from './progression-details';
+import { climbingTotals, climbingGrades, gradeLabel, gradeRank, isClimbing } from '@/lib/climbing';
 import { type Workout, type WorkoutExercise, newEntry } from '@/lib/domain';
 import {
   eligible,
@@ -67,19 +68,38 @@ export function Statistics() {
   const frequency = weeklyFrequency(completed, period, firstCompletedAt, now);
   const exercise = data.exercises.find((e) => e.id === exerciseId);
   const isCardio = exercise?.load_kind === 'cardio';
-  const metric = isCardio
-    ? ['duration', 'distance'].includes(selectedMetric)
+  const climbing = isClimbing(exercise?.load_kind);
+  const metric = climbing
+    ? ['grade', 'passages', 'sent'].includes(selectedMetric)
       ? selectedMetric
-      : 'duration'
-    : ['duration', 'distance'].includes(selectedMetric)
-      ? 'weight'
-      : selectedMetric;
+      : 'grade'
+    : isCardio
+      ? ['duration', 'distance'].includes(selectedMetric)
+        ? selectedMetric
+        : 'duration'
+      : ['duration', 'distance', 'grade', 'passages', 'sent'].includes(selectedMetric)
+        ? 'weight'
+        : selectedMetric;
   const rows = completed.toReversed().flatMap((w) => {
     const es = w.exercises.filter((e) => e.exercise_id === exerciseId);
     if (!es.length) return [];
     const e = es[0];
     const sets = es.flatMap((e) => e.sets).filter((s) => eligible(s, warmup));
     let value: number | null = null;
+    if (isClimbing(e.load_kind)) {
+      const total = climbingTotals(
+        [{ ...w, exercises: es }],
+        e.load_kind as 'climbing' | 'bouldering',
+      );
+      value =
+        metric === 'grade'
+          ? total.highest
+            ? gradeRank(total.highest)
+            : null
+          : metric === 'sent'
+            ? total.sent
+            : total.count;
+    }
     if (e.load_kind === 'cardio' && ['duration', 'distance'].includes(metric)) {
       const intervals = es
         .flatMap((x) => x.sets)
@@ -247,7 +267,13 @@ export function Statistics() {
             value={metric}
             onChange={(e) => setMetric(e.target.value)}
           >
-            {isCardio ? (
+            {climbing ? (
+              <>
+                <option value="grade">Meilleure cotation réussie</option>
+                <option value="passages">Passages travaillés</option>
+                <option value="sent">Passages réussis</option>
+              </>
+            ) : isCardio ? (
               <>
                 <option value="duration">Durée cardio</option>
                 <option value="distance">Distance cardio</option>
@@ -276,16 +302,23 @@ export function Statistics() {
         {rows.some((r) => r.value !== null) ? (
           <ProgressChart
             rows={rows}
+            gradeKind={
+              metric === 'grade' ? (exercise?.load_kind as 'climbing' | 'bouldering') : undefined
+            }
             unit={
-              metric === 'duration'
-                ? 'min'
-                : metric === 'distance'
-                  ? 'km'
-                  : metric === 'sets'
-                    ? 'séries'
-                    : metric === 'reps'
-                      ? 'rép.'
-                      : 'kg'
+              metric === 'grade'
+                ? 'cotation'
+                : ['passages', 'sent'].includes(metric)
+                  ? 'passages'
+                  : metric === 'duration'
+                    ? 'min'
+                    : metric === 'distance'
+                      ? 'km'
+                      : metric === 'sets'
+                        ? 'séries'
+                        : metric === 'reps'
+                          ? 'rép.'
+                          : 'kg'
             }
           />
         ) : (
@@ -296,13 +329,15 @@ export function Statistics() {
           />
         )}
         <p className="muted" style={{ fontSize: 10, marginTop: 12 }}>
-          {isCardio
-            ? 'Durée réellement effectuée et distance renseignée sur cet appareil. Les intervalles cardio ne comptent pas dans les séries musculaires, le volume externe ou les records de charge.'
-            : metric === 'e1rm'
-              ? 'Estimation Epley : charge × (1 + répétitions / 30). Séries normales de 1 à 10 répétitions, exercices compatibles uniquement. Une répétition utilise la charge réelle.'
-              : 'Les charges externes, le poids du corps et les séries assistées sont traités séparément. Les haltères sont consignés par haltère, sans doublement automatique.'}
+          {climbing
+            ? 'Les cotations réussies sont affichées sur une échelle ordonnée, sans conversion en charge ni distance uniforme entre niveaux. Une tentative seule ne crée pas de record. Les voies et blocs sont suivis séparément.'
+            : isCardio
+              ? 'Durée réellement effectuée et distance renseignée sur cet appareil. Les intervalles cardio ne comptent pas dans les séries musculaires, le volume externe ou les records de charge.'
+              : metric === 'e1rm'
+                ? 'Estimation Epley : charge × (1 + répétitions / 30). Séries normales de 1 à 10 répétitions, exercices compatibles uniquement. Une répétition utilise la charge réelle.'
+                : 'Les charges externes, le poids du corps et les séries assistées sont traités séparément. Les haltères sont consignés par haltère, sans doublement automatique.'}
         </p>
-        {suggestion && (
+        {suggestion && suggestion.kind !== 'disabled' && (
           <div className="suggestion" style={{ marginTop: 20, marginBottom: 0 }}>
             <ChartNoAxesCombined size={17} />
             <div>
@@ -319,7 +354,13 @@ export function Statistics() {
               {rows.map((r, i) => (
                 <tr key={i}>
                   <td>{shortDate(r.date)}</td>
-                  <td>{r.value === null ? 'Non applicable' : number(r.value, 2)}</td>
+                  <td>
+                    {r.value === null
+                      ? 'Non applicable'
+                      : metric === 'grade'
+                        ? gradeLabel(climbingGrades[r.value], exercise?.load_kind)
+                        : number(r.value, 2)}
+                  </td>
                 </tr>
               ))}
             </tbody>

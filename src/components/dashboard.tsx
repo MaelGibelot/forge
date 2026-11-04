@@ -8,6 +8,7 @@ import { Button, PageTitle, Empty, ErrorBox, api } from './ui';
 import { type Workout, type ProgramDay, startWorkout } from '@/lib/domain';
 import { workoutFromTemplate, type WorkoutTemplate } from '@/lib/templates';
 import { coachAdvice } from '@/lib/coach';
+import { climbingTotals } from '@/lib/climbing';
 import {
   workoutVolume,
   records,
@@ -54,13 +55,17 @@ export function useStartWorkout() {
 }
 export function SessionRow({ workout: w }: { workout: Workout }) {
   const sets = w.exercises.flatMap((e) => e.sets).filter((s) => eligible(s));
+  const climbing = climbingTotals([w], 'climbing'),
+    blocks = climbingTotals([w], 'bouldering');
   return (
     <Link className="session-row" href={`/seances/${w.id}`}>
       <div className="date-tile">{shortDate(w.started_at)}</div>
       <div className="session-info">
         <strong>{w.name}</strong>
         <p>
-          {w.exercises.length} exercices · {sets.length} séries{' '}
+          {w.exercises.length} activités · {sets.length} séries{' '}
+          {climbing.count > 0 && `· ${climbing.sent}/${climbing.count} voies réussies `}
+          {blocks.count > 0 && `· ${blocks.sent}/${blocks.count} blocs réussis `}
           {cardioTotals(w).seconds > 0 && `· ${duration(cardioTotals(w).seconds)} cardio `}
           <span className="orange">
             {w.status === 'draft' ? '· Brouillon' : w.status === 'active' ? '· En cours' : ''}

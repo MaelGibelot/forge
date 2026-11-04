@@ -8,6 +8,7 @@ import { Button, PageTitle, Empty, ErrorBox, api } from './ui';
 import type { Workout } from '@/lib/domain';
 import { workoutVolume, eligible, number, shortDate, cardioTotals, duration } from '@/lib/metrics';
 import { SessionTemplates } from './session-templates';
+import { climbingTotals } from '@/lib/climbing';
 export function History() {
   const { data, reload } = useData();
   const launch = useStartWorkout();
@@ -100,6 +101,15 @@ export function History() {
                       <small>
                         {w.exercises.flatMap((e) => e.sets).filter((s) => eligible(s)).length}{' '}
                         séries de travail
+                        {(['climbing', 'bouldering'] as const).map((kind) => {
+                          const t = climbingTotals([w], kind);
+                          return t.count > 0 ? (
+                            <span key={kind}>
+                              <br />
+                              {t.sent}/{t.count} {kind === 'climbing' ? 'voies' : 'blocs'} réussis
+                            </span>
+                          ) : null;
+                        })}
                       </small>
                     </td>
                     <td data-label="Volume externe">

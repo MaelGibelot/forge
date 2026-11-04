@@ -676,6 +676,7 @@ export type Database = {
       };
       workout_sets: {
         Row: {
+          climbing: Json | null;
           id: string;
           user_id: string;
           workout_exercise_id: string;
@@ -693,6 +694,7 @@ export type Database = {
           reached_failure: boolean;
         };
         Insert: {
+          climbing?: Json | null;
           id: string;
           user_id: string;
           workout_exercise_id: string;
@@ -710,6 +712,7 @@ export type Database = {
           reached_failure?: boolean;
         };
         Update: {
+          climbing?: Json | null;
           id?: string;
           user_id?: string;
           workout_exercise_id?: string;

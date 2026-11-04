@@ -2,6 +2,14 @@
 
 L’application enregistre une séance depuis l’interface vers une route HTTP Next.js, puis vers une RPC transactionnelle Supabase et des tables PostgreSQL normalisées. La réponse serveur détermine l’état de sauvegarde de l’interface.
 
+## Escalade — voies et bloc, 4 novembre
+
+- 162 tests Vitest réussis : cotations et ordre ordinal, essais/réussites distincts, séparation voie/bloc, absence de répétitions/charges/cardio/séries musculaires/1RM artificiels, validation des valeurs et incompatibilités, remise à zéro des copies/modèles, sauvegarde depuis le composant et cotation lisible dans le tableau du graphique.
+- PostgreSQL embarqué : nouvelle migration et seed réexécutable, 390 fiches globales ; sauvegarde/lecture réelle de la cotation et des essais, rejet des valeurs invalides, transaction annulée en cas de passage incohérent, isolation lecture/écriture entre deux utilisateurs. Anciens tests musculation/cardio, révisions et modèles conservés.
+- Aperçu navigateur à 320, 390 et 1440 px : voie réussie et bloc tenté, essais, fin de séance et rechargement, collection Sports, historique et graphique des niveaux. Aucun débordement ni erreur JavaScript. Captures `docs/previews/climbing-*-test.png`. API interceptée avec données fictives, sans parcours Auth privé réel. Aperçu retiré avant la compilation finale.
+- ESLint, TypeScript et compilation production réussis. Supabase : migration `20261104215214_climbing` appliquée, deux fiches globales présentes, colonne additive présente ; RLS maintenue, RPC toujours `SECURITY INVOKER`, aucun droit d’exécution anonyme. Diagnostics de sécurité inchangés (tables privées d’identifiants sans politique cliente et protection des mots de passe compromis préexistante désactivée).
+- Le premier appel de migration a expiré sans modification ; absence de colonne vérifiée, puis nouvel appel réussi. Aucun doublon ni performance historique modifiée. Référence de notation, conventions et limites dans [ESCALADE.md](ESCALADE.md).
+
 ## Évolution du 4 novembre : objectifs et coaching individuel
 
 - 140 tests Vitest réussis. Cas fixes 10/9/8 et 10/10/9 à 70 kg, hausse fixe conservant 10, plage double progression, effort/récupération absents ou défavorables, pause longue, débutant/avancé/entretien, assistance et paliers disponibles, isolation et incréments disproportionnés, objectifs priorisés, modèles conservant la cible avec performances vidées, conseils factuels, échecs prioritaires, volumes directs et exclusion du futur/brouillon. Cas Leg curl distinct du curl de coude.

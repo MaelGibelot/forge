@@ -4,6 +4,7 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { catalog } from '../src/lib/catalog';
 import { newEntry, startWorkout, newSet, type Program } from '../src/lib/domain';
 import { templateFromWorkout, workoutFromTemplate } from '../src/lib/templates';
+import { sportCatalog } from '../src/lib/climbing';
 const db = new PGlite();
 const alice = '20000000-0000-4000-8000-000000000001',
   bob = '20000000-0000-4000-8000-000000000002';
@@ -48,6 +49,79 @@ afterAll(async () => {
   await db.close();
 });
 describe('PostgreSQL embarqué : migrations, transactions et RLS', () => {
+  it('enregistre les cotations et essais, isole les comptes et annule un passage invalide', async () => {
+    const e = newEntry(sportCatalog[0], 0);
+    const w = {
+      ...startWorkout(),
+      exercises: [
+        {
+          ...e,
+          technique_ok: false,
+          sets: [
+            {
+              ...newSet(0, e.target, 'climbing'),
+              completed: true,
+              climbing: { grade: '6b+', attempts: 2, result: 'sent', style: 'lead' },
+            },
+          ],
+        },
+      ],
+    };
+    await asUser(alice);
+    await rpc('save_workout', w);
+    const read = await db.query<{ w: (typeof w)[] }>(
+      'select public.read_workouts(0,30,null,$1) w',
+      [w.id],
+    );
+    expect(read.rows[0].w[0].exercises[0].sets[0].climbing).toEqual(
+      w.exercises[0].sets[0].climbing,
+    );
+    await expect(
+      db.query(
+        "update public.workout_sets set climbing=jsonb_set(climbing,'{grade}','\"nope\"') where id=$1",
+        [w.exercises[0].sets[0].id],
+      ),
+    ).rejects.toThrow();
+    await expect(
+      db.query(
+        "update public.workout_sets set climbing=jsonb_set(climbing,'{attempts}','0') where id=$1",
+        [w.exercises[0].sets[0].id],
+      ),
+    ).rejects.toThrow();
+    await asUser(bob);
+    expect(
+      (
+        await db.query('select climbing from public.workout_sets where id=$1', [
+          w.exercises[0].sets[0].id,
+        ])
+      ).rows,
+    ).toHaveLength(0);
+    expect(
+      (
+        await db.query('update public.workout_sets set completed=false where id=$1 returning id', [
+          w.exercises[0].sets[0].id,
+        ])
+      ).rows,
+    ).toHaveLength(0);
+    await asUser(alice);
+    const invalid = {
+      ...w,
+      id: crypto.randomUUID(),
+      exercises: [
+        {
+          ...w.exercises[0],
+          id: crypto.randomUUID(),
+          sets: [{ ...w.exercises[0].sets[0], id: crypto.randomUUID(), weight: 20 }],
+        },
+      ],
+    };
+    await expect(rpc('save_workout', invalid)).rejects.toThrow();
+    expect(
+      (await db.query('select id from public.workout_sessions where id=$1', [invalid.id])).rows,
+    ).toHaveLength(0);
+    await db.exec('reset role');
+    await db.query('delete from public.workout_sessions where id=$1', [w.id]);
+  });
   it('persiste le profil, les paliers et le ressenti privé sans modifier les objectifs fixes', async () => {
     const base = newEntry(catalog[0], 0);
     const e = {

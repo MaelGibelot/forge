@@ -11,7 +11,14 @@ export async function POST(request: Request) {
         name: z.string().trim().min(1).max(120),
         equipment: z.enum(equipment),
         primary_muscle: z.enum(muscles),
-        load_kind: z.enum(['external', 'bodyweight', 'assisted', 'cardio']),
+        load_kind: z.enum([
+          'external',
+          'bodyweight',
+          'assisted',
+          'cardio',
+          'climbing',
+          'bouldering',
+        ]),
         description: z.string().max(2000),
         instructions: z.array(z.string().max(500)).max(10),
       })
