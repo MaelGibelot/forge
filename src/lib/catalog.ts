@@ -2,6 +2,7 @@ import type { Exercise, Muscle, Equipment } from './domain';
 import { technogymCatalog } from './technogym.ts';
 import { variantCatalog } from './variants.ts';
 import { sportCatalog } from './climbing.ts';
+import { enduranceActivities } from './endurance.ts';
 
 // Textes originaux et schémas originaux : aucun média tiers n'est redistribué.
 // La classification décrit la sollicitation générale, pas un % d'activation.
@@ -503,4 +504,5 @@ export const catalog: Exercise[] = [
   ...technogymCatalog,
   ...variantCatalog,
   ...sportCatalog,
+  ...enduranceActivities,
 ];

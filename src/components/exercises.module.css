@@ -1,0 +1,69 @@
+.collections {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+  margin-bottom: 14px;
+}
+
+.collections button {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-height: 56px;
+  padding: 6px 3px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--bg);
+  color: var(--fg);
+  font-size: 12px;
+  line-height: 1.2;
+}
+
+.collections button:hover,
+.collections button[aria-pressed='true'] {
+  border-color: var(--accent);
+}
+
+.collections button[aria-pressed='true'] {
+  background: var(--soft);
+  font-weight: 600;
+}
+
+.pickerFilters input {
+  flex: 1 1 220px;
+  min-width: 0;
+}
+
+.pickerGroup {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+}
+
+.pickerGroup h3 {
+  padding: 6px 2px 2px;
+  font-size: 14px;
+}
+
+.pickerGroup button span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.activityIllustration {
+  display: grid;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  border-radius: 14px;
+  background: var(--panel);
+  color: var(--green);
+}
+
+@media (min-width: 680px) {
+  .collections {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
+}

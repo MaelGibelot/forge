@@ -7,6 +7,8 @@ import { useData } from './store';
 import { Button, PageTitle, Field, NumberField, ErrorBox, api } from './ui';
 import { goalLabels } from '@/lib/training-knowledge';
 import { preferencesSchema, type Preferences } from '@/lib/domain';
+import { enduranceGoalSchema, enduranceSportLabels } from '@/lib/endurance';
+import { EnduranceGoalsFields } from './endurance-goals';
 export function Settings() {
   const { data, reload } = useData();
   const { theme, setTheme } = useTheme();
@@ -192,10 +194,21 @@ export function Settings() {
               programmes. Une recommandation ne modifie jamais vos données sans action de votre
               part.
             </p>
+            <EnduranceGoalsFields
+              goals={p.endurance_goals ?? []}
+              onChange={(endurance_goals) => setP({ ...p, endurance_goals })}
+            />
             <Button
               busy={busy}
               onClick={() =>
                 run(async () => {
+                  const invalidGoal = p.endurance_goals?.find(
+                    (goal) => !enduranceGoalSchema.safeParse(goal).success,
+                  );
+                  if (invalidGoal)
+                    throw new Error(
+                      `Vérifiez la distance et le temps cible pour ce sport (${enduranceSportLabels[invalidGoal.sport]}).`,
+                    );
                   await api('/api/preferences', { method: 'PUT', body: JSON.stringify(p) });
                   await reload();
                   router.refresh();

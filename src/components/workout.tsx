@@ -58,6 +58,7 @@ import { RepGoalFields } from './rep-goal-fields';
 import { movementKnowledge } from '@/lib/training-knowledge';
 import { isClimbing, isStrength } from '@/lib/climbing';
 import { ClimbingPassages } from './climbing-passages';
+import { enduranceActivity, enduranceRate, formatEnduranceRate } from '@/lib/endurance';
 export function WorkoutPage({ id }: { id: string }) {
   const [workout, setWorkout] = useState<Workout | null>(null),
     [error, setError] = useState<string | null>(null);
@@ -91,94 +92,131 @@ function CardioIntervals({
   onChange: (e: WorkoutExercise) => void;
   edit: boolean;
 }) {
+  const activity = enduranceActivity(e.exercise_id);
+  const swimming = activity?.sport === 'swimming';
+  const feedback = e.feedback ?? {
+    effort: null,
+    recovery: null,
+    pain: false,
+    technique_issue: false,
+  };
   const set = (next: WorkoutSet) =>
     onChange({ ...e, sets: e.sets.map((s) => (s.id === next.id ? next : s)) });
   return (
     <div className="stack">
       <p className="muted" style={{ fontSize: 12 }}>
-        Durée obligatoire pour valider un intervalle ; distance facultative. Indiquez vitesse,
-        inclinaison ou résistance dans les notes.
+        {activity
+          ? 'Renseignez la durée en mouvement. La distance permet de calculer l’allure ou la vitesse.'
+          : 'Durée obligatoire pour valider un intervalle. Distance facultative. Indiquez vitesse, inclinaison ou résistance dans les notes.'}
       </p>
-      {e.sets.map((s, i) => (
-        <div
-          className="card stack"
-          key={s.id}
-          style={{ background: 'var(--panel2)', marginTop: 14 }}
-        >
-          <div className="flex between">
-            <h3>Intervalle {i + 1}</h3>
-            {edit && (
-              <Button
-                variant="ghost"
-                aria-label={`Supprimer l’intervalle ${i + 1}`}
-                onClick={() =>
-                  onChange({
-                    ...e,
-                    sets: e.sets
-                      .filter((x) => x.id !== s.id)
-                      .map((x, position) => ({ ...x, position })),
-                  })
-                }
-              >
-                <Trash2 size={15} />
-              </Button>
+      {e.sets.map((s, i) => {
+        const rate = activity
+          ? enduranceRate(activity.sport, s.duration_seconds ?? 0, s.distance_km ?? 0)
+          : null;
+        return (
+          <div
+            className="card stack"
+            key={s.id}
+            style={{ background: 'var(--panel2)', marginTop: 14 }}
+          >
+            <div className="flex between">
+              <h3>Intervalle {i + 1}</h3>
+              {edit && (
+                <Button
+                  variant="ghost"
+                  aria-label={`Supprimer l’intervalle ${i + 1}`}
+                  onClick={() =>
+                    onChange({
+                      ...e,
+                      sets: e.sets
+                        .filter((x) => x.id !== s.id)
+                        .map((x, position) => ({ ...x, position })),
+                    })
+                  }
+                >
+                  <Trash2 size={15} />
+                </Button>
+              )}
+            </div>
+            <div className="field-grid">
+              <Field label="Durée (minutes : secondes)">
+                <RestInput
+                  label={`Durée intervalle ${i + 1}`}
+                  maxMinutes={1440}
+                  value={s.duration_seconds ?? null}
+                  onChange={(duration_seconds) =>
+                    set({
+                      ...s,
+                      duration_seconds,
+                      completed: (duration_seconds ?? 0) > 0 && s.completed,
+                    })
+                  }
+                />
+              </Field>
+              <Field label={`Distance (${swimming ? 'm' : 'km'}) · facultative`}>
+                <NumberField
+                  label={`Distance intervalle ${i + 1}`}
+                  nullable
+                  max={swimming ? 10000000 : 10000}
+                  step={swimming ? 1 : 0.01}
+                  value={
+                    s.distance_km == null
+                      ? null
+                      : swimming
+                        ? Number((s.distance_km * 1000).toPrecision(12))
+                        : s.distance_km
+                  }
+                  onChange={(value) =>
+                    set({
+                      ...s,
+                      distance_km: value == null ? null : swimming ? value / 1000 : value,
+                    })
+                  }
+                />
+              </Field>
+              {activity?.session === 'intervals' && (
+                <Field label="Récupération après l’intervalle (facultative)">
+                  <RestInput
+                    label={`Récupération intervalle ${i + 1}`}
+                    value={s.rest_seconds}
+                    onChange={(rest_seconds) => set({ ...s, rest_seconds })}
+                  />
+                </Field>
+              )}
+              <Field label="Type">
+                <select
+                  aria-label={`Type intervalle ${i + 1}`}
+                  value={s.type}
+                  onChange={(x) => set({ ...s, type: x.target.value as 'normal' | 'warmup' })}
+                >
+                  <option value="normal">Travail</option>
+                  <option value="warmup">Échauffement</option>
+                </select>
+              </Field>
+            </div>
+            {activity && rate !== null && (
+              <p className="muted">{formatEnduranceRate(activity.sport, rate)}</p>
             )}
-          </div>
-          <div className="field-grid">
-            <Field label="Durée (minutes : secondes)">
-              <RestInput
-                label={`Durée intervalle ${i + 1}`}
-                maxMinutes={1440}
-                value={s.duration_seconds ?? null}
-                onChange={(duration_seconds) =>
-                  set({
-                    ...s,
-                    duration_seconds,
-                    completed: (duration_seconds ?? 0) > 0 && s.completed,
-                  })
-                }
+            <Field label="Notes et réglages">
+              <input
+                aria-label={`Notes intervalle ${i + 1}`}
+                maxLength={1000}
+                value={s.notes}
+                onChange={(x) => set({ ...s, notes: x.target.value })}
               />
             </Field>
-            <Field label="Distance (km) · facultative">
-              <NumberField
-                label={`Distance intervalle ${i + 1}`}
-                nullable
-                max={10000}
-                step={0.01}
-                value={s.distance_km ?? null}
-                onChange={(distance_km) => set({ ...s, distance_km })}
+            <label className="check-label">
+              <input
+                type="checkbox"
+                checked={s.completed}
+                disabled={(s.duration_seconds ?? 0) <= 0}
+                onChange={(x) => set({ ...s, completed: x.target.checked })}
               />
-            </Field>
-            <Field label="Type">
-              <select
-                aria-label={`Type intervalle ${i + 1}`}
-                value={s.type}
-                onChange={(x) => set({ ...s, type: x.target.value as 'normal' | 'warmup' })}
-              >
-                <option value="normal">Travail</option>
-                <option value="warmup">Échauffement</option>
-              </select>
-            </Field>
+              Intervalle {i + 1} effectué
+            </label>
           </div>
-          <Field label="Notes et réglages">
-            <input
-              aria-label={`Notes intervalle ${i + 1}`}
-              maxLength={1000}
-              value={s.notes}
-              onChange={(x) => set({ ...s, notes: x.target.value })}
-            />
-          </Field>
-          <label className="check-label">
-            <input
-              type="checkbox"
-              checked={s.completed}
-              disabled={(s.duration_seconds ?? 0) <= 0}
-              onChange={(x) => set({ ...s, completed: x.target.checked })}
-            />
-            Intervalle {i + 1} effectué
-          </label>
-        </div>
-      ))}
+        );
+      })}
       {edit && (
         <Button
           variant="secondary"
@@ -190,6 +228,52 @@ function CardioIntervals({
           Ajouter un intervalle
         </Button>
       )}
+      {activity && (
+        <details className="notes-details">
+          <summary>Ressenti (facultatif)</summary>
+          <div className="field-grid">
+            <Field label="Effort">
+              <select
+                aria-label="Effort cardio"
+                value={feedback.effort ?? ''}
+                onChange={(event) =>
+                  onChange({
+                    ...e,
+                    feedback: {
+                      ...feedback,
+                      effort: (event.target.value || null) as typeof feedback.effort,
+                    },
+                  })
+                }
+              >
+                <option value="">Non renseigné</option>
+                <option value="easy">Facile</option>
+                <option value="controlled">Maîtrisé</option>
+                <option value="hard">Difficile</option>
+              </select>
+            </Field>
+            <Field label="Récupération">
+              <select
+                aria-label="Récupération cardio"
+                value={feedback.recovery ?? ''}
+                onChange={(event) =>
+                  onChange({
+                    ...e,
+                    feedback: {
+                      ...feedback,
+                      recovery: (event.target.value || null) as typeof feedback.recovery,
+                    },
+                  })
+                }
+              >
+                <option value="">Non renseignée</option>
+                <option value="good">Bonne</option>
+                <option value="poor">Insuffisante</option>
+              </select>
+            </Field>
+          </div>
+        </details>
+      )}
     </div>
   );
 }
@@ -198,6 +282,8 @@ function WorkoutEditor({ initial }: { initial: Workout }) {
   const router = useRouter();
   const editor = useWorkoutSave(initial, data.user_id, remember);
   const w = editor.workout;
+  const freeWorkout = w.source_day_id === null;
+  const addActivityLabel = freeWorkout ? 'Ajouter une activité' : 'Ajouter un exercice';
   const [edit, setEdit] = useState(w.status !== 'completed'),
     [picker, setPicker] = useState(false),
     [history, setHistory] = useState<Workout[] | null>(null),
@@ -481,12 +567,16 @@ function WorkoutEditor({ initial }: { initial: Workout }) {
           <Empty
             icon={<Dumbbell />}
             title="À vous de jouer"
-            description="Ajoutez votre premier exercice. Chaque série sera enregistrée après votre saisie."
+            description={
+              freeWorkout
+                ? 'Choisissez un sport, un exercice de musculation ou un appareil cardio.'
+                : 'Ajoutez votre premier exercice. Chaque série sera enregistrée après votre saisie.'
+            }
             action={
               edit && (
                 <Button onClick={() => setPicker(true)}>
                   <Plus size={16} />
-                  Ajouter un exercice
+                  {addActivityLabel}
                 </Button>
               )
             }
@@ -545,7 +635,7 @@ function WorkoutEditor({ initial }: { initial: Workout }) {
                   {isClimbing(e.load_kind) ? (
                     `${e.sets.length} ${e.load_kind === 'bouldering' ? 'bloc(s)' : 'voie(s)'} · cotations et essais`
                   ) : e.load_kind === 'cardio' ? (
-                    `${e.target.sets} intervalle(s) cardio · durée et distance`
+                    `${e.sets.length} intervalle(s) · durée et distance`
                   ) : (
                     <>
                       {w.source_day_id
@@ -1027,11 +1117,11 @@ function WorkoutEditor({ initial }: { initial: Workout }) {
           </section>
         );
       })}
-      {edit && (
+      {edit && w.exercises.length > 0 && (
         <div className="actions">
           <Button variant="secondary" onClick={() => setPicker(true)}>
             <Plus size={16} />
-            Ajouter un exercice
+            {addActivityLabel}
           </Button>
           <Button
             variant="secondary"
@@ -1103,6 +1193,7 @@ function WorkoutEditor({ initial }: { initial: Workout }) {
       )}
       {picker && (
         <ExercisePicker
+          activityMode={freeWorkout}
           onClose={() => setPicker(false)}
           onSelect={(exercise) => {
             const e = newEntry(

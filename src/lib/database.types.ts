@@ -441,6 +441,7 @@ export type Database = {
       user_preferences: {
         Row: {
           coaching: Json;
+          endurance_goals: Json;
           user_id: string;
           recommendations: boolean;
           history_count: number;
@@ -449,6 +450,7 @@ export type Database = {
         };
         Insert: {
           coaching?: Json;
+          endurance_goals?: Json;
           user_id: string;
           recommendations?: boolean;
           history_count?: number;
@@ -457,6 +459,7 @@ export type Database = {
         };
         Update: {
           coaching?: Json;
+          endurance_goals?: Json;
           user_id?: string;
           recommendations?: boolean;
           history_count?: number;

@@ -64,10 +64,12 @@ export function ProgressChart({
   rows,
   unit = 'kg',
   gradeKind,
+  formatValue,
 }: {
   rows: { date: string; value: number | null }[];
   unit?: string;
   gradeKind?: 'climbing' | 'bouldering';
+  formatValue?: (value: number) => string;
 }) {
   return (
     <div
@@ -94,12 +96,12 @@ export function ProgressChart({
                     climbingGrades[Math.round(Number(v))]
                       ? gradeLabel(climbingGrades[Math.round(Number(v))], gradeKind)
                       : ''
-                : undefined
+                : formatValue
             }
             tick={{ fill: 'var(--muted)', fontSize: 10 }}
             axisLine={false}
             tickLine={false}
-            width={48}
+            width={formatValue ? 78 : 48}
             domain={['auto', 'auto']}
           />
           <Tooltip
@@ -107,7 +109,7 @@ export function ProgressChart({
             formatter={(v) => [
               gradeKind
                 ? gradeLabel(climbingGrades[Math.round(Number(v))], gradeKind)
-                : `${number(Number(v), 2)} ${unit}`,
+                : (formatValue?.(Number(v)) ?? `${number(Number(v), 2)} ${unit}`),
               'Performance',
             ]}
             contentStyle={{

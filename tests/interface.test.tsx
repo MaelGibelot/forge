@@ -554,6 +554,35 @@ describe('parcours des composants privés (DOM, sans service Auth simulé)', () 
     fireEvent.click(screen.getByRole('button', { name: new RegExp('Skillrow') }));
     expect(select).toHaveBeenCalledWith(machine);
   });
+  it('distingue les sports et les appareils cardio dans le choix d’une activité libre', async () => {
+    const workout = { ...startWorkout(), revision: 1 };
+    state.api.mockResolvedValue([workout]);
+    render(<WorkoutPage id={workout.id} />);
+    const addActivity = { name: /Ajouter (une activité|un exercice)/ };
+    fireEvent.click((await screen.findAllByRole('button', addActivity))[0]);
+    const dialog = screen.getByRole('dialog', { name: 'Ajouter une activité' });
+    const picker = within(dialog);
+    fireEvent.click(picker.getByRole('button', { name: 'Sports' }));
+    expect(picker.getByRole('region', { name: 'Escalade' })).toBeTruthy();
+    const search = picker.getByRole('textbox', { name: 'Rechercher un exercice' });
+    fireEvent.change(picker.getByRole('combobox', { name: 'Sport' }), {
+      target: { value: 'swimming' },
+    });
+    expect(picker.getAllByRole('button', { name: /Natation/ }).length).toBeGreaterThan(0);
+    expect(picker.queryByRole('button', { name: /Course à pied/ })).toBeNull();
+
+    fireEvent.click(picker.getByRole('button', { name: 'Appareils cardio' }));
+    expect(picker.queryByRole('combobox', { name: 'Sport' })).toBeNull();
+    expect(picker.queryByRole('button', { name: /Natation/ })).toBeNull();
+    expect(picker.getByRole('button', { name: /Skillrow/ })).toBeTruthy();
+
+    fireEvent.click(picker.getByRole('button', { name: 'Sports' }));
+    fireEvent.change(search, { target: { value: 'course fractionne' } });
+    const running = within(picker.getByRole('region', { name: 'Course à pied' }));
+    fireEvent.click(running.getByRole('button', { name: /fractionné/i }));
+    expect(screen.queryByRole('dialog', { name: 'Ajouter une activité' })).toBeNull();
+    expect(screen.getByRole('heading', { name: /Course à pied.*fractionné/i })).toBeTruthy();
+  });
   it('prépare un programme cardio avec des intervalles et sans objectifs de charge', async () => {
     state.api.mockResolvedValue({ revision: 1 });
     render(<ProgramEditor />);

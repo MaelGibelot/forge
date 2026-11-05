@@ -9,7 +9,21 @@ import {
 } from '@/lib/training-knowledge';
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { Plus, Search, ArrowUpRight, BookOpen } from 'lucide-react';
+import {
+  Plus,
+  Search,
+  ArrowUpRight,
+  BookOpen,
+  Bike,
+  Bookmark,
+  Dumbbell,
+  Footprints,
+  Gauge,
+  Layers,
+  LayoutGrid,
+  Mountain,
+  Waves,
+} from 'lucide-react';
 import { useData, allWorkouts } from './store';
 import { Button, PageTitle, Modal, Field, NumberField, ErrorBox, Empty, api } from './ui';
 import { Anatomy } from './anatomy';
@@ -24,79 +38,240 @@ import {
 import { records, recommendation, number } from '@/lib/metrics';
 import { ProgressionDetails } from './progression-details';
 import { isClimbing, isStrength } from '@/lib/climbing';
+import { enduranceActivity, enduranceSportLabels } from '@/lib/endurance';
 import { ClimbingHistory } from './climbing-history';
+import styles from './exercises.module.css';
+
+const collections = [
+  { value: '', label: 'Toutes', icon: LayoutGrid },
+  { value: 'sports', label: 'Sports', icon: Footprints },
+  { value: 'strength', label: 'Musculation', icon: Dumbbell },
+  { value: 'cardio-machines', label: 'Appareils cardio', icon: Gauge },
+  { value: 'technogym', label: 'Technogym', icon: Layers },
+  { value: 'personal', label: 'Personnels', icon: Bookmark },
+] as const;
+
+const sportLabels = { ...enduranceSportLabels, climbing: 'Escalade' };
+type Sport = keyof typeof sportLabels;
+const sports = ['running', 'swimming', 'cycling', 'climbing'] as const;
+const sportIcons = { running: Footprints, swimming: Waves, cycling: Bike, climbing: Mountain };
+
+function exerciseSport(exercise: Exercise): Sport | undefined {
+  return isClimbing(exercise.load_kind) ? 'climbing' : enduranceActivity(exercise.id)?.sport;
+}
+
+function matchesCollection(exercise: Exercise, collection: string) {
+  switch (collection) {
+    case 'sports':
+      return !!exerciseSport(exercise);
+    case 'strength':
+      return isStrength(exercise.load_kind);
+    case 'cardio':
+      return exercise.load_kind === 'cardio';
+    case 'cardio-machines':
+      return (
+        exercise.load_kind === 'cardio' &&
+        !exerciseSport(exercise) &&
+        (!exercise.user_id || exercise.equipment === 'Machine')
+      );
+    case 'technogym':
+      return exercise.category.startsWith('Technogym ·');
+    case 'personal':
+      return !!exercise.user_id;
+    default:
+      return true;
+  }
+}
+
+function searchWords(value: string) {
+  return (
+    value
+      .normalize('NFD')
+      .replace(/\p{Diacritic}/gu, '')
+      .toLowerCase()
+      .match(/[a-z0-9]+/g) ?? []
+  );
+}
+
+function matchesSearch(exercise: Exercise, terms: string[]) {
+  if (!terms.length) return true;
+  const sport = exerciseSport(exercise);
+  const session = enduranceActivity(exercise.id)?.session;
+  const aliases = [
+    sport === 'swimming' && 'piscine',
+    sport === 'cycling' && 'cyclisme',
+    session === 'intervals' && 'fractionné intervalles',
+  ].filter(Boolean);
+  const search = searchWords(
+    [
+      exercise.name,
+      exercise.english_name,
+      exercise.category,
+      exercise.equipment,
+      sport && sportLabels[sport],
+      ...aliases,
+    ]
+      .filter(Boolean)
+      .join(' '),
+  ).join(' ');
+  return terms.every((term) => search.includes(term));
+}
+
+function activityLabel(exercise: Exercise) {
+  const sport = exerciseSport(exercise);
+  if (sport) return sportLabels[sport];
+  if (exercise.load_kind === 'cardio') return exercise.user_id ? 'Cardio' : 'Appareil cardio';
+  return exercise.primary_muscle;
+}
+
+function CollectionOptions() {
+  return (
+    <>
+      <option value="">Toutes les collections</option>
+      <option value="cardio">Tout le cardio</option>
+      {collections.slice(1).map(({ value, label }) => (
+        <option key={value} value={value}>
+          {label}
+        </option>
+      ))}
+    </>
+  );
+}
+
+function SportFilter({ sport, onChange }: { sport: string; onChange: (sport: string) => void }) {
+  return (
+    <select aria-label="Sport" value={sport} onChange={(e) => onChange(e.target.value)}>
+      <option value="">Tous les sports</option>
+      {sports.map((value) => (
+        <option key={value} value={value}>
+          {sportLabels[value]}
+        </option>
+      ))}
+    </select>
+  );
+}
+
 export function ExercisePicker({
   onSelect,
   onClose,
+  activityMode = false,
 }: {
   onSelect: (e: Exercise) => void;
   onClose: () => void;
+  activityMode?: boolean;
 }) {
   const { data } = useData();
   const [q, setQ] = useState(''),
     [muscle, setMuscle] = useState(''),
     [collection, setCollection] = useState(''),
+    [sport, setSport] = useState(''),
     [limit, setLimit] = useState(60);
+  const showMuscles = !['sports', 'cardio', 'cardio-machines'].includes(collection);
+  const terms = searchWords(q);
   const results = data.exercises.filter(
     (e) =>
-      `${e.name} ${e.english_name ?? ''} ${e.category}`
-        .toLocaleLowerCase('fr')
-        .includes(q.toLocaleLowerCase('fr')) &&
-      (!collection ||
-        (collection === 'technogym'
-          ? e.category.startsWith('Technogym ·')
-          : collection === 'sports'
-            ? isClimbing(e.load_kind)
-            : e.load_kind === 'cardio')) &&
-      (!muscle || e.primary_muscle === muscle),
+      matchesCollection(e, collection) &&
+      (!sport || exerciseSport(e) === sport) &&
+      (!muscle || (isStrength(e.load_kind) && e.primary_muscle === muscle)) &&
+      matchesSearch(e, terms),
   );
+  const displayed = results.slice(0, limit);
+  const groups =
+    collection === 'sports' && !sport
+      ? sports.map((value) => ({
+          label: sportLabels[value],
+          exercises: displayed.filter((e) => exerciseSport(e) === value),
+        }))
+      : [{ label: '', exercises: displayed }];
+  function changeCollection(value: string) {
+    setCollection(value);
+    setSport('');
+    setMuscle('');
+    setLimit(60);
+  }
   return (
-    <Modal title="Ajouter un exercice" onClose={onClose}>
-      <div className="search-bar">
-        <select
-          aria-label="Collection"
-          value={collection}
-          onChange={(e) => setCollection(e.target.value)}
-        >
-          <option value="">Toutes les collections</option>
-          <option value="technogym">Technogym</option>
-          <option value="cardio">Cardio</option>
-          <option value="sports">Sports · Escalade</option>
-        </select>
+    <Modal
+      title={activityMode ? 'Ajouter une activité' : 'Ajouter un exercice'}
+      onClose={onClose}
+      wide={activityMode}
+    >
+      {activityMode && (
+        <div className={styles.collections} role="group" aria-label="Collections d’activités">
+          {collections.map(({ value, label, icon: Icon }) => (
+            <button
+              key={value}
+              type="button"
+              aria-pressed={collection === value}
+              onClick={() => changeCollection(value)}
+            >
+              <Icon size={16} aria-hidden="true" />
+              {label}
+            </button>
+          ))}
+        </div>
+      )}
+      <div className={`search-bar ${styles.pickerFilters}`}>
+        {!activityMode && (
+          <select
+            aria-label="Collection"
+            value={collection}
+            onChange={(e) => changeCollection(e.target.value)}
+          >
+            <CollectionOptions />
+          </select>
+        )}
         <input
           aria-label="Rechercher un exercice"
-          placeholder="Rechercher un mouvement…"
+          placeholder={activityMode ? 'Rechercher une activité…' : 'Rechercher un mouvement…'}
           value={q}
-          onChange={(e) => setQ(e.target.value)}
+          onChange={(e) => {
+            setQ(e.target.value);
+            setLimit(60);
+          }}
         />
-        <select
-          aria-label="Groupe musculaire"
-          value={muscle}
-          onChange={(e) => setMuscle(e.target.value)}
-        >
-          <option value="">Tous les muscles</option>
-          {muscles.map((m) => (
-            <option key={m}>{m}</option>
-          ))}
-        </select>
+        {collection === 'sports' && <SportFilter sport={sport} onChange={setSport} />}
+        {showMuscles && (
+          <select
+            aria-label="Groupe musculaire"
+            value={muscle}
+            onChange={(e) => {
+              setMuscle(e.target.value);
+              setLimit(60);
+            }}
+          >
+            <option value="">Tous les muscles</option>
+            {muscles.map((m) => (
+              <option key={m}>{m}</option>
+            ))}
+          </select>
+        )}
       </div>
       <div className="picker-list">
-        {results.slice(0, limit).map((e) => (
-          <button key={e.id} onClick={() => onSelect(e)}>
-            <span>
-              {e.name}
-              <br />
-              <small>
-                {e.primary_muscle} · {e.equipment}
-              </small>
-            </span>
-            <Plus size={17} />
-          </button>
-        ))}
+        {groups
+          .filter((group) => group.exercises.length > 0)
+          .map(({ label, exercises }) => (
+            <section key={label} className={styles.pickerGroup} aria-label={label || undefined}>
+              {label && <h3>{label}</h3>}
+              {exercises.map((e) => (
+                <button key={e.id} type="button" onClick={() => onSelect(e)}>
+                  <span>
+                    {e.name}
+                    <br />
+                    <small>
+                      {activityLabel(e)}
+                      {isStrength(e.load_kind) && ` · ${e.equipment}`}
+                      {e.user_id && ' · Personnel'}
+                    </small>
+                  </span>
+                  <Plus size={17} aria-hidden="true" />
+                </button>
+              ))}
+            </section>
+          ))}
         {!results.length && (
           <Empty
-            title="Aucun exercice trouvé"
-            description="Essayez un autre nom ou groupe musculaire."
+            title={activityMode ? 'Aucune activité trouvée' : 'Aucun exercice trouvé'}
+            description="Essayez un autre mot-clé ou une autre collection."
           />
         )}
         {results.length > limit && (
@@ -115,27 +290,20 @@ export function ExerciseLibrary() {
     [eq, setEq] = useState(''),
     [category, setCategory] = useState(''),
     [collection, setCollection] = useState(''),
+    [sport, setSport] = useState(''),
     [create, setCreate] = useState(false);
   const [limit, setLimit] = useState(48);
-  const results = data.exercises
-    .filter(
-      (e) =>
-        `${e.name} ${e.english_name ?? ''}`
-          .toLocaleLowerCase('fr')
-          .includes(q.toLocaleLowerCase('fr')) &&
-        (!muscle || e.primary_muscle === muscle) &&
-        (!eq || e.equipment === eq) &&
-        (!category || e.category === category),
-    )
-    .filter(
-      (e) =>
-        !collection ||
-        (collection === 'technogym'
-          ? e.category.startsWith('Technogym ·')
-          : collection === 'sports'
-            ? isClimbing(e.load_kind)
-            : e.load_kind === 'cardio'),
-    );
+  const collectionExercises = data.exercises.filter((e) => matchesCollection(e, collection));
+  const showStrengthFilters = !['sports', 'cardio', 'cardio-machines'].includes(collection);
+  const terms = searchWords(q);
+  const results = collectionExercises.filter(
+    (e) =>
+      matchesSearch(e, terms) &&
+      (!sport || exerciseSport(e) === sport) &&
+      (!muscle || (isStrength(e.load_kind) && e.primary_muscle === muscle)) &&
+      (!eq || e.equipment === eq) &&
+      (!category || e.category === category),
+  );
   return (
     <>
       <PageTitle
@@ -156,12 +324,13 @@ export function ExerciseLibrary() {
           onChange={(e) => {
             setCollection(e.target.value);
             setCategory('');
+            setSport('');
+            setMuscle('');
+            setEq('');
+            setLimit(48);
           }}
         >
-          <option value="">Toutes les collections</option>
-          <option value="technogym">Technogym</option>
-          <option value="cardio">Cardio</option>
-          <option value="sports">Sports · Escalade</option>
+          <CollectionOptions />
         </select>
         <div className="search-input">
           <Search size={18} />
@@ -172,46 +341,64 @@ export function ExerciseLibrary() {
             onChange={(e) => setQ(e.target.value)}
           />
         </div>
-        <select aria-label="Muscle" value={muscle} onChange={(e) => setMuscle(e.target.value)}>
-          <option value="">Tous les muscles</option>
-          {muscles.map((m) => (
-            <option key={m}>{m}</option>
-          ))}
-        </select>
-        <select aria-label="Équipement" value={eq} onChange={(e) => setEq(e.target.value)}>
-          <option value="">Tous les équipements</option>
-          {equipment.map((m) => (
-            <option key={m}>{m}</option>
-          ))}
-        </select>
-        <select
-          aria-label="Catégorie"
-          value={category}
-          onChange={(e) => setCategory(e.target.value)}
-        >
-          <option value="">Toutes les catégories</option>
-          {[...new Set(data.exercises.map((e) => e.category))].map((m) => (
-            <option key={m}>{m}</option>
-          ))}
-        </select>
+        {showStrengthFilters && (
+          <>
+            <select aria-label="Muscle" value={muscle} onChange={(e) => setMuscle(e.target.value)}>
+              <option value="">Tous les muscles</option>
+              {muscles.map((m) => (
+                <option key={m}>{m}</option>
+              ))}
+            </select>
+            <select aria-label="Équipement" value={eq} onChange={(e) => setEq(e.target.value)}>
+              <option value="">Tous les équipements</option>
+              {equipment.map((m) => (
+                <option key={m}>{m}</option>
+              ))}
+            </select>
+          </>
+        )}
+        {collection === 'sports' ? (
+          <SportFilter sport={sport} onChange={setSport} />
+        ) : (
+          <select
+            aria-label="Catégorie"
+            value={category}
+            onChange={(e) => setCategory(e.target.value)}
+          >
+            <option value="">Toutes les catégories</option>
+            {[...new Set(collectionExercises.map((e) => e.category))].map((m) => (
+              <option key={m}>{m}</option>
+            ))}
+          </select>
+        )}
       </div>
       <div className="exercise-grid">
-        {results.slice(0, limit).map((e) => (
-          <Link key={e.id} href={`/exercices/${e.id}`} className="card exercise-card">
-            <div className="exercise-card-visual">
-              <span className="badge">{e.equipment}</span>
-              <Anatomy primary={e.primary_muscle} secondary={e.secondary_muscles} compact />
-            </div>
-            <div className="exercise-card-content">
-              <span className="badge badge-orange">{e.primary_muscle}</span>
-              <h3>{e.name}</h3>
-              <div className="flex between">
-                <p>{e.user_id ? 'Personnel' : e.category}</p>
-                <ArrowUpRight size={15} className="muted" />
+        {results.slice(0, limit).map((e) => {
+          const sport = exerciseSport(e);
+          const Icon = sport ? sportIcons[sport] : e.load_kind === 'cardio' ? Gauge : null;
+          return (
+            <Link key={e.id} href={`/exercices/${e.id}`} className="card exercise-card">
+              <div className="exercise-card-visual">
+                <span className="badge">{sport ? 'Sport' : e.equipment}</span>
+                {Icon ? (
+                  <span className={styles.activityIllustration} aria-hidden="true">
+                    <Icon style={{ width: 28, height: 28 }} />
+                  </span>
+                ) : (
+                  <Anatomy primary={e.primary_muscle} secondary={e.secondary_muscles} compact />
+                )}
               </div>
-            </div>
-          </Link>
-        ))}
+              <div className="exercise-card-content">
+                <span className="badge badge-orange">{activityLabel(e)}</span>
+                <h3>{e.name}</h3>
+                <div className="flex between">
+                  <p>{e.user_id ? 'Personnel' : e.category}</p>
+                  <ArrowUpRight size={15} className="muted" />
+                </div>
+              </div>
+            </Link>
+          );
+        })}
       </div>
       <p className="muted" style={{ fontSize: 12, marginTop: 16 }}>
         {Math.min(limit, results.length)} / {results.length} exercices affichés

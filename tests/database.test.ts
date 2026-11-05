@@ -5,6 +5,7 @@ import { catalog } from '../src/lib/catalog';
 import { newEntry, startWorkout, newSet, type Program } from '../src/lib/domain';
 import { templateFromWorkout, workoutFromTemplate } from '../src/lib/templates';
 import { sportCatalog } from '../src/lib/climbing';
+import { enduranceActivities, enduranceGoalsSchema } from '../src/lib/endurance';
 const db = new PGlite();
 const alice = '20000000-0000-4000-8000-000000000001',
   bob = '20000000-0000-4000-8000-000000000002';
@@ -49,6 +50,50 @@ afterAll(async () => {
   await db.close();
 });
 describe('PostgreSQL embarqué : migrations, transactions et RLS', () => {
+  it('conserve des objectifs cardio par sport sous les droits du compte et les activités au catalogue', async () => {
+    const goals = enduranceGoalsSchema.parse([
+      {
+        sport: 'running',
+        objective: 'performance',
+        sessions_per_week: 3,
+        target_distance_km: 10,
+        target_time_seconds: 3000,
+      },
+      { sport: 'swimming', objective: 'distance', sessions_per_week: 2, target_distance_km: 1.5 },
+    ]);
+    await asUser(alice);
+    await db.query('insert into public.user_preferences(user_id) values($1)', [alice]);
+    const readGoals = () =>
+      db.query<{ endurance_goals: unknown }>(
+        'select endurance_goals from public.user_preferences where user_id=$1',
+        [alice],
+      );
+    expect((await readGoals()).rows[0].endurance_goals).toEqual([]);
+    await db.query('update public.user_preferences set endurance_goals=$2 where user_id=$1', [
+      alice,
+      JSON.stringify(goals),
+    ]);
+    expect((await readGoals()).rows[0].endurance_goals).toEqual(goals);
+    const found = await db.query<{ id: string; load_kind: string }>(
+      'select id,load_kind from public.exercises where id=any($1::uuid[])',
+      [enduranceActivities.map((exercise) => exercise.id)],
+    );
+    expect(found.rows).toHaveLength(18);
+    expect(found.rows.every((row) => row.load_kind === 'cardio')).toBe(true);
+    await asUser(bob);
+    expect((await readGoals()).rows).toHaveLength(0);
+    expect(
+      (
+        await db.query(
+          'update public.user_preferences set endurance_goals=$2 where user_id=$1 returning user_id',
+          [alice, '[]'],
+        )
+      ).rows,
+    ).toHaveLength(0);
+    await asUser(alice);
+    expect((await readGoals()).rows[0].endurance_goals).toEqual(goals);
+    await db.query('delete from public.user_preferences where user_id=$1', [alice]);
+  });
   it('enregistre les cotations et essais, isole les comptes et annule un passage invalide', async () => {
     const e = newEntry(sportCatalog[0], 0);
     const w = {

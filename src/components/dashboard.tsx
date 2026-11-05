@@ -5,10 +5,11 @@ import { useRouter } from 'next/navigation';
 import { ArrowUpRight, Plus, Dumbbell, Layers, Weight, Trophy, CalendarDays } from 'lucide-react';
 import { useData, allWorkouts } from './store';
 import { Button, PageTitle, Empty, ErrorBox, api } from './ui';
-import { type Workout, type ProgramDay, startWorkout } from '@/lib/domain';
+import { type Workout, type ProgramDay, startWorkout, newEntry, newSet } from '@/lib/domain';
 import { workoutFromTemplate, type WorkoutTemplate } from '@/lib/templates';
 import { coachAdvice } from '@/lib/coach';
 import { climbingTotals } from '@/lib/climbing';
+import { EndurancePlans } from './endurance-plans';
 import {
   workoutVolume,
   records,
@@ -26,7 +27,11 @@ export function useStartWorkout() {
   return {
     busy,
     error,
-    start: async (day?: ProgramDay, template?: WorkoutTemplate) => {
+    start: async (
+      day?: ProgramDay,
+      template?: WorkoutTemplate,
+      seed?: { activityId: string; notes?: string },
+    ) => {
       setBusy(true);
       setError(null);
       try {
@@ -38,6 +43,27 @@ export function useStartWorkout() {
         const w = template
           ? workoutFromTemplate(template, data.progression)
           : startWorkout(day, data.workouts, data.progression);
+        if (!day && !template && seed) {
+          const activity = data.exercises.find((entry) => entry.id === seed.activityId);
+          if (!activity) throw new Error('Cette activité n’est pas disponible.');
+          const entry = newEntry(
+            activity,
+            0,
+            data.progression.find((setting) => setting.exercise_id === activity.id),
+            { preferences: data.preferences, history: data.workouts },
+          );
+          w.name = activity.name.slice(0, 100).trimEnd();
+          w.exercises = [
+            {
+              ...entry,
+              notes: seed.notes ?? entry.notes,
+              technique_ok: false,
+              sets: Array.from({ length: entry.target.sets }, (_, index) =>
+                newSet(index, entry.target, entry.load_kind),
+              ),
+            },
+          ];
+        }
         const r = await api<{ revision: number }>('/api/workouts', {
           method: 'POST',
           body: JSON.stringify(w),
@@ -101,9 +127,16 @@ export function Dashboard() {
         Date.parse(w.started_at) >= asOf - 30 * 864e5 &&
         Date.parse(w.started_at) <= asOf,
     ) ?? [];
-  const advice = workouts
-    ? coachAdvice(data, workouts, asOf).filter((c) => !dismissed.includes(c.id))
-    : [];
+  const enduranceGoals = data.preferences.endurance_goals ?? [];
+  const showStrengthCoach =
+    !enduranceGoals.length ||
+    workouts?.some(
+      (w) => w.status === 'completed' && w.exercises.some((e) => e.sets.some((s) => eligible(s))),
+    );
+  const advice =
+    workouts && showStrengthCoach
+      ? coachAdvice(data, workouts, asOf).filter((c) => !dismissed.includes(c.id))
+      : [];
   const volume = completed.reduce((v, w) => v + workoutVolume(w), 0);
   const sets = completed
     .flatMap((w) => w.exercises.flatMap((e) => e.sets))
@@ -111,6 +144,7 @@ export function Dashboard() {
   const prs = records(completed);
   const active = data.programs.find((p) => p.active) ?? data.programs[0];
   const resume = data.workouts.find((w) => w.status !== 'completed');
+  const activeWorkoutId = data.workouts.find((w) => w.status === 'active')?.id;
   return (
     <>
       <PageTitle
@@ -288,41 +322,53 @@ export function Dashboard() {
           aria-label="Conseils de ton coach"
         >
           <h2>Conseils de ton coach</h2>
-          {!workouts ? (
-            <p>Analyse de vos séances…</p>
-          ) : advice.length === 0 ? (
-            <p className="muted">
-              Conseils masqués pour cette visite. Les nouveaux résultats renouvelleront l’analyse.
-            </p>
-          ) : (
-            advice.map((c, i) => (
-              <article
-                key={c.id}
-                className="stack"
-                style={{
-                  borderTop: i ? '1px solid var(--border)' : undefined,
-                  paddingTop: i ? 16 : 0,
-                }}
-              >
-                <div className="flex between">
-                  <h3>{c.title}</h3>
-                  {c.priority >= 8 && (
-                    <span className="badge badge-orange">À vérifier avant de progresser</span>
-                  )}
-                </div>
-                <p className="muted">{c.fact}</p>
-                <p>{c.advice}</p>
-                <div className="actions">
-                  <Link className="text-link" href={c.href}>
-                    {c.action} ↗
-                  </Link>
-                  <Button variant="ghost" onClick={() => setDismissed([...dismissed, c.id])}>
-                    Masquer ce conseil
-                  </Button>
-                </div>
-              </article>
-            ))
-          )}
+          <EndurancePlans
+            goals={enduranceGoals}
+            workouts={workouts}
+            exercises={data.exercises}
+            now={asOf}
+            activeWorkoutId={activeWorkoutId}
+            busy={launch.busy}
+            onStart={(activityId, notes) =>
+              launch.start(undefined, undefined, { activityId, notes })
+            }
+          />
+          {showStrengthCoach &&
+            (!workouts ? (
+              <p>Analyse de vos séances…</p>
+            ) : advice.length === 0 ? (
+              <p className="muted">
+                Conseils masqués pour cette visite. Les nouveaux résultats renouvelleront l’analyse.
+              </p>
+            ) : (
+              advice.map((c, i) => (
+                <article
+                  key={c.id}
+                  className="stack"
+                  style={{
+                    borderTop: i ? '1px solid var(--border)' : undefined,
+                    paddingTop: i ? 16 : 0,
+                  }}
+                >
+                  <div className="flex between">
+                    <h3>{c.title}</h3>
+                    {c.priority >= 8 && (
+                      <span className="badge badge-orange">À vérifier avant de progresser</span>
+                    )}
+                  </div>
+                  <p className="muted">{c.fact}</p>
+                  <p>{c.advice}</p>
+                  <div className="actions">
+                    <Link className="text-link" href={c.href}>
+                      {c.action} ↗
+                    </Link>
+                    <Button variant="ghost" onClick={() => setDismissed([...dismissed, c.id])}>
+                      Masquer ce conseil
+                    </Button>
+                  </div>
+                </article>
+              ))
+            ))}
         </section>
       )}
     </>

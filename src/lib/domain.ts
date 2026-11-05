@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { resolveRepGoal, latestGoal, movementKnowledge } from './training-knowledge.ts';
 import { climbingGrades, isClimbing } from './climbing.ts';
+import { enduranceGoalsSchema } from './endurance.ts';
 
 export const muscles = [
   'Pectoraux',
@@ -233,6 +234,7 @@ export const preferencesSchema = z.object({
   history_count: z.number().int().min(2).max(20),
   max_rpe: optionalNumber(1, 10),
   min_rir: optionalNumber(0, 10),
+  endurance_goals: enduranceGoalsSchema.optional(),
   coaching: z
     .object({
       goal: z

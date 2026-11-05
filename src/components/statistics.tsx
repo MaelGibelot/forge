@@ -8,6 +8,7 @@ import { PageTitle, Empty, ErrorBox, NumberField, Button, api } from './ui';
 import { MuscleActivity } from './anatomy';
 import { ProgressionDetails } from './progression-details';
 import { climbingTotals, climbingGrades, gradeLabel, gradeRank, isClimbing } from '@/lib/climbing';
+import { enduranceActivity, enduranceRate, formatEnduranceRate } from '@/lib/endurance';
 import { type Workout, type WorkoutExercise, newEntry } from '@/lib/domain';
 import {
   eligible,
@@ -68,16 +69,21 @@ export function Statistics() {
   const frequency = weeklyFrequency(completed, period, firstCompletedAt, now);
   const exercise = data.exercises.find((e) => e.id === exerciseId);
   const isCardio = exercise?.load_kind === 'cardio';
+  const endurance = enduranceActivity(exerciseId);
+  const swimming = endurance?.sport === 'swimming';
+  const cardioMetrics = endurance ? ['duration', 'distance', 'pace'] : ['duration', 'distance'];
   const climbing = isClimbing(exercise?.load_kind);
   const metric = climbing
     ? ['grade', 'passages', 'sent'].includes(selectedMetric)
       ? selectedMetric
       : 'grade'
     : isCardio
-      ? ['duration', 'distance'].includes(selectedMetric)
+      ? cardioMetrics.includes(selectedMetric)
         ? selectedMetric
-        : 'duration'
-      : ['duration', 'distance', 'grade', 'passages', 'sent'].includes(selectedMetric)
+        : endurance
+          ? 'pace'
+          : 'duration'
+      : ['duration', 'distance', 'pace', 'grade', 'passages', 'sent'].includes(selectedMetric)
         ? 'weight'
         : selectedMetric;
   const rows = completed.toReversed().flatMap((w) => {
@@ -100,19 +106,23 @@ export function Statistics() {
             ? total.sent
             : total.count;
     }
-    if (e.load_kind === 'cardio' && ['duration', 'distance'].includes(metric)) {
+    if (e.load_kind === 'cardio' && cardioMetrics.includes(metric)) {
       const intervals = es
         .flatMap((x) => x.sets)
         .filter(
           (s) => s.completed && (s.duration_seconds ?? 0) > 0 && (warmup || s.type !== 'warmup'),
         );
-      value =
-        metric === 'duration'
-          ? intervals.reduce((n, s) => n + (s.duration_seconds ?? 0), 0) / 60
-          : intervals.some((s) => s.distance_km != null)
-            ? intervals.reduce((n, s) => n + (s.distance_km ?? 0), 0)
-            : null;
-      if (!intervals.length) value = null;
+      const seconds = intervals.reduce((sum, s) => sum + (s.duration_seconds ?? 0), 0);
+      const km = intervals.reduce((sum, s) => sum + (s.distance_km ?? 0), 0);
+      if (intervals.length) {
+        if (metric === 'duration') value = seconds / 60;
+        if (metric === 'distance' && intervals.some((s) => s.distance_km != null)) {
+          value = swimming ? km * 1000 : km;
+        }
+        if (metric === 'pace' && endurance && intervals.every((s) => (s.distance_km ?? 0) > 0)) {
+          value = enduranceRate(endurance.sport, seconds, km);
+        }
+      }
     }
     if (metric === 'weight' && e.load_kind === 'external') {
       const weights = sets.flatMap((s) => (s.weight === null ? [] : [s.weight]));
@@ -131,6 +141,10 @@ export function Statistics() {
     }
     return [{ date: w.started_at, value }];
   });
+  const formatRate =
+    metric === 'pace' && endurance
+      ? (value: number) => formatEnduranceRate(endurance.sport, value)
+      : undefined;
   const total = completed.reduce((v, w) => v + workoutVolume(w, warmup), 0),
     sets = completed
       .flatMap((w) => w.exercises.flatMap((e) => e.sets))
@@ -277,6 +291,11 @@ export function Statistics() {
               <>
                 <option value="duration">Durée cardio</option>
                 <option value="distance">Distance cardio</option>
+                {endurance && (
+                  <option value="pace">
+                    {endurance.sport === 'cycling' ? 'Vitesse moyenne' : 'Allure moyenne'}
+                  </option>
+                )}
               </>
             ) : (
               <>
@@ -302,6 +321,7 @@ export function Statistics() {
         {rows.some((r) => r.value !== null) ? (
           <ProgressChart
             rows={rows}
+            formatValue={formatRate}
             gradeKind={
               metric === 'grade' ? (exercise?.load_kind as 'climbing' | 'bouldering') : undefined
             }
@@ -313,12 +333,20 @@ export function Statistics() {
                   : metric === 'duration'
                     ? 'min'
                     : metric === 'distance'
-                      ? 'km'
-                      : metric === 'sets'
-                        ? 'séries'
-                        : metric === 'reps'
-                          ? 'rép.'
-                          : 'kg'
+                      ? swimming
+                        ? 'm'
+                        : 'km'
+                      : metric === 'pace'
+                        ? endurance?.sport === 'cycling'
+                          ? 'km/h'
+                          : swimming
+                            ? 'min/100 m'
+                            : 'min/km'
+                        : metric === 'sets'
+                          ? 'séries'
+                          : metric === 'reps'
+                            ? 'rép.'
+                            : 'kg'
             }
           />
         ) : (
@@ -331,11 +359,13 @@ export function Statistics() {
         <p className="muted" style={{ fontSize: 10, marginTop: 12 }}>
           {climbing
             ? 'Les cotations réussies sont affichées sur une échelle ordonnée, sans conversion en charge ni distance uniforme entre niveaux. Une tentative seule ne crée pas de record. Les voies et blocs sont suivis séparément.'
-            : isCardio
-              ? 'Durée réellement effectuée et distance renseignée sur cet appareil. Les intervalles cardio ne comptent pas dans les séries musculaires, le volume externe ou les records de charge.'
-              : metric === 'e1rm'
-                ? 'Estimation Epley : charge × (1 + répétitions / 30). Séries normales de 1 à 10 répétitions, exercices compatibles uniquement. Une répétition utilise la charge réelle.'
-                : 'Les charges externes, le poids du corps et les séries assistées sont traités séparément. Les haltères sont consignés par haltère, sans doublement automatique.'}
+            : endurance
+              ? 'L’allure et la vitesse utilisent la durée en mouvement des intervalles retenus. La distance doit être renseignée sur chacun pour afficher une moyenne.'
+              : isCardio
+                ? 'Durée réellement effectuée et distance renseignée sur cet appareil. Les intervalles cardio ne comptent pas dans les séries musculaires, le volume externe ou les records de charge.'
+                : metric === 'e1rm'
+                  ? 'Estimation Epley : charge × (1 + répétitions / 30). Séries normales de 1 à 10 répétitions, exercices compatibles uniquement. Une répétition utilise la charge réelle.'
+                  : 'Les charges externes, le poids du corps et les séries assistées sont traités séparément. Les haltères sont consignés par haltère, sans doublement automatique.'}
         </p>
         {suggestion && suggestion.kind !== 'disabled' && (
           <div className="suggestion" style={{ marginTop: 20, marginBottom: 0 }}>
@@ -359,7 +389,7 @@ export function Statistics() {
                       ? 'Non applicable'
                       : metric === 'grade'
                         ? gradeLabel(climbingGrades[r.value], exercise?.load_kind)
-                        : number(r.value, 2)}
+                        : (formatRate?.(r.value) ?? number(r.value, 2))}
                   </td>
                 </tr>
               ))}
